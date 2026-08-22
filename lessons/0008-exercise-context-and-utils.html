@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exercise 2: Context & Utility Types</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/exercise.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Exercise 2</span>
+    <h1>Context &amp; Utility Types</h1>
+    <p class="lesson-meta">Covers Lessons 5–6 &middot; ~20 min</p>
+
+    <div class="lesson-nav top">
+      <span><a href="0007-utility-types.html">&larr; Lesson 6: Utility Types</a></span>
+      <span>Next: <a href="0009-typing-usereducer.html">Lesson 7: Typing useReducer</a></span>
+    </div>
+
+    <div class="callout">
+      <strong>How to do this:</strong> try each challenge <em>before</em> revealing the solution. Type your answer in your own editor or the <a href="https://www.typescriptlang.org/play" target="_blank">TypeScript Playground</a> and make sure it compiles with no red squiggles. Retrieving from memory — not reading — is what builds long-term skill.
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 1 &middot; Lesson 5</div>
+      <h3>Build a typed ToastContext</h3>
+      <p class="objective">Objective: write the full production context pattern from memory.</p>
+      <div class="task">
+        Create a toast notification context:
+        <ul>
+          <li><code>Toast</code>: <code>{ id: number; message: string }</code></li>
+          <li>Context value: the toast list + a <code>showToast(message: string)</code> action</li>
+          <li>A <code>ToastsProvider</code> holding the state</li>
+          <li>A <code>useToasts()</code> hook that consumers call — it must never hand out <code>null</code></li>
+        </ul>
+        Rules: honest default on <code>createContext</code>, export only the Provider and the hook.
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>import { createContext, useContext, useState, useMemo } from "react";
+
+interface Toast {
+  id: number;
+  message: string;
+}
+
+interface ToastsContextValue {
+  toasts: Toast[];
+  showToast: (message: string) =&gt; void;
+}
+
+// Default IS null — the type says so:
+const ToastsContext = createContext&lt;ToastsContextValue | null&gt;(null);
+
+export function ToastsProvider({ children }: { children: React.ReactNode }) {
+  const [toasts, setToasts] = useState&lt;Toast[]&gt;([]);
+
+  const value = useMemo(
+    () =&gt; ({
+      toasts,
+      showToast: (message: string) =&gt;
+        setToasts((prev) =&gt; [...prev, { id: Date.now(), message }]),
+    }),
+    [toasts]
+  );
+
+  return &lt;ToastsContext value={value}&gt;{children}&lt;/ToastsContext&gt;;
+}
+
+export function useToasts(): ToastsContextValue {
+  const ctx = useContext(ToastsContext);
+  if (!ctx) throw new Error("useToasts must be used within &lt;ToastsProvider&gt;");
+  return ctx;
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 2 &middot; Lesson 5</div>
+      <h3>Debug the settings page</h3>
+      <p class="objective">Objective: spot two problems with raw context consumption.</p>
+      <div class="task">
+        <p>This component has a compile error <em>and</em> breaks a convention from Lesson 5. Find both and fix:</p>
+<pre><code>function SettingsMenu() {
+  const { user, logout } = useContext(AuthContext);   // ❌
+
+  if (!user) return &lt;p&gt;Not logged in&lt;/p&gt;;
+  return &lt;button onClick={logout}&gt;Log out {user.name}&lt;/button&gt;;
+}</code></pre>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>function SettingsMenu() {
+  const { user, logout } = useAuth();   // ✅ the hook is the API
+
+  if (!user) return &lt;p&gt;Not logged in&lt;/p&gt;;
+  return &lt;button onClick={logout}&gt;Log out {user.name}&lt;/button&gt;;
+}</code></pre>
+        <p>The two problems:</p>
+        <ol>
+          <li><strong>Compile error:</strong> <code>AuthContext</code> holds <code>AuthContextValue | null</code>, so TS refuses the destructure — you can't pull properties off a possibly-null value.</li>
+          <li><strong>Convention break:</strong> components shouldn't touch the raw context object. The guard hook exists precisely to remove <code>null</code> once, centrally. Note that <code>user: User | null</code> <em>stays</em> in the type — being logged out is real data — but the context value itself can no longer be null.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 3 &middot; Lesson 6</div>
+      <h3>Derive four types from User</h3>
+      <p class="objective">Objective: reshape one source type with utilities — no redeclaring fields.</p>
+      <div class="task">
+        Given:
+<pre><code>type Role = "admin" | "editor" | "viewer";
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  createdAt: string;
+  role: Role;
+}</code></pre>
+        Derive, using only utility types:
+        <ol>
+          <li><code>PublicUser</code> — everything except <code>password</code></li>
+          <li><code>UserDraft</code> — what a signup form submits: all fields except <code>id</code> and <code>createdAt</code></li>
+          <li><code>UserPatch</code> — any subset of <code>UserDraft</code> fields, for updates</li>
+          <li><code>permissions</code> — an object that must have a <code>string[]</code> entry for every possible <code>Role</code></li>
+        </ol>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>type PublicUser = Omit&lt;User, "password"&gt;;
+
+type UserDraft = Omit&lt;User, "id" | "createdAt"&gt;;
+
+type UserPatch = Partial&lt;UserDraft&gt;;
+
+const permissions: Record&lt;Role, string[]&gt; = {
+  admin:  ["read", "write", "delete"],
+  editor: ["read", "write"],
+  viewer: ["read"],
+};</code></pre>
+        <p>Note what you get for free: add a field to <code>User</code> tomorrow and every derived type updates automatically. Add a new <code>Role</code> member and TS immediately errors that <code>permissions</code> is incomplete — that's <code>Record</code>'s completeness check.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 4 &middot; Lesson 6</div>
+      <h3>Wrap a native input</h3>
+      <p class="objective">Objective: the design-system pattern — extend native props, replace one.</p>
+      <div class="task">
+        Build a <code>PasswordInput</code> for a design system:
+        <ul>
+          <li>Accepts every prop a normal <code>&lt;input&gt;</code> accepts (<code>placeholder</code>, <code>disabled</code>, <code>aria-*</code>, …)</li>
+          <li><strong>Except</strong> <code>onChange</code> — yours takes the plain string: <code>onChange: (value: string) =&gt; void</code></li>
+          <li><strong>And except</strong> <code>type</code> — the component always renders <code>type="password"</code> internally</li>
+          <li>No manual redeclaration of native props; no <code>any</code></li>
+        </ul>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>interface PasswordInputProps
+  extends Omit&lt;React.ComponentPropsWithoutRef&lt;"input"&gt;, "onChange" | "type"&gt; {
+  onChange: (value: string) =&gt; void;
+}
+
+function PasswordInput({ onChange, ...rest }: PasswordInputProps) {
+  return (
+    &lt;input
+      {...rest}
+      type="password"
+      onChange={(e) =&gt; onChange(e.currentTarget.value)}
+    /&gt;
+  );
+}
+
+// Usage — native props still work, fully typed:
+&lt;PasswordInput
+  placeholder="Enter password"
+  autoComplete="new-password"
+  disabled={loading}
+  onChange={(value) =&gt; setPassword(value)}
+/&gt;</code></pre>
+        <p>The key move: <code>Omit&lt;..., "onChange" | "type"&gt;</code> removes only the two props you're replacing/locking, then your own declarations take over. Everything else flows through via <code>{...rest}</code>.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Stretch &middot; Lessons 4 + 5</div>
+      <h3>Generic useLocalStorageState</h3>
+      <p class="objective">Objective: combine generics, hook structure, and tuple typing.</p>
+      <div class="task">
+        Write a generic <code>useLocalStorageState&lt;T&gt;(key, initial)</code> hook:
+        <ul>
+          <li>Reads the stored value lazily on first render (not on every render)</li>
+          <li>Persists every change back to <code>localStorage</code></li>
+          <li>Returns <code>[value, setValue]</code> as a proper tuple — not an array of union type</li>
+        </ul>
+        You'll need Lesson 4 generics, Lesson 5 hook structure, lazy <code>useState</code> initialization, and an explicit tuple return type.
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>import { useEffect, useState } from "react";
+
+function useLocalStorageState&lt;T&gt;(
+  key: string,
+  initial: T
+): [T, (value: T) =&gt; void] {
+  // Lazy initializer — runs once, not on every render:
+  const [value, setValue] = useState&lt;T&gt;(() =&gt; {
+    const stored = localStorage.getItem(key);
+    return stored ? (JSON.parse(stored) as T) : initial;
+  });
+
+  useEffect(() =&gt; {
+    localStorage.setItem(key, JSON.stringify(value));
+  }, [key, value]);
+
+  return [value, setValue] as const;
+}
+
+// Usage — T inferred from initial:
+const [name, setName] = useLocalStorageState("username", "Ada");
+const [cart, setCart] = useLocalStorageState&lt;Item[]&gt;("cart", []);</code></pre>
+        <p>The three teaching points:</p>
+        <ol>
+          <li><strong>Lazy init:</strong> passing a function to <code>useState</code> means <code>localStorage.getItem</code> runs only on the first render.</li>
+          <li><strong>The tuple return:</strong> without it, TS infers <code>(T | ((value: T) =&gt; void))[]</code> — destructuring would give both elements that union type. The explicit annotation <code>[T, (value: T) =&gt; void]</code> (or <code>as const</code>) keeps <code>value</code> and <code>setValue</code> distinct.</li>
+          <li><strong>Honest caveat:</strong> <code>JSON.parse(...) as T</code> is an assertion — stored data could be stale or tampered. Production versions validate on read (or use a library like <a href="https://github.com/astoilkov/use-local-storage-state" target="_blank">use-local-storage-state</a>). Assertions are acceptable at trust boundaries you control — just know that's what this is.</li>
+        </ol>
+      </div>
+    </div>
+
+    <p>Stuck on any challenge? Ask me — hinting is half my job.</p>
+
+    <div class="lesson-nav">
+      <span><a href="0007-utility-types.html">← Lesson 6: Utility Types</a></span>
+      <span>Next: <a href="0009-typing-usereducer.html">Lesson 7: Typing useReducer</a></span>
+    </div>
+  </div>
+</body>
+</html>

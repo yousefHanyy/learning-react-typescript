@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 2: Typing Events &amp; State</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Lesson 2</span>
+    <h1>Typing Events &amp; State</h1>
+    <p class="lesson-meta">~6 min &middot; Builds on: <a href="0001-typing-props.html">Lesson 1</a> &middot; <a href="../reference/glossary.html">Glossary</a></p>
+
+    <div class="lesson-nav top">
+      <span><a href="0001-typing-props.html">&larr; Lesson 1: Typing Props</a></span>
+      <span>Next: <a href="0003-typing-refs.html">Refs &amp; forwardRef</a></span>
+    </div>
+
+    <p>Two things you'll type every single day at work: <strong>event handlers</strong> and <strong>state</strong>. Both are simpler than they first look.</p>
+
+    <h2>1. Event handlers</h2>
+    <p>React exports a handler type for every event. Use <code>React.XEventHandler&lt;HTMLElement&gt;</code> when you pass a handler as a <strong>named function</strong>:</p>
+
+<pre><code>// onChange on an input → ChangeEvent
+function App() {
+  const handleChange = (e: React.ChangeEvent&lt;HTMLInputElement&gt;) =&gt; {
+    console.log(e.currentTarget.value);
+  };
+
+  return &lt;input onChange={handleChange} /&gt;;
+}</code></pre>
+
+    <p>When the handler is <strong>inline in JSX</strong>, you can skip the type entirely — TS infers it from the element:</p>
+
+<pre><code>function App() {
+  return (
+    &lt;input onChange={(e) =&gt; console.log(e.currentTarget.value)} /&gt;
+    //       ↑ e is inferred as ChangeEvent&lt;HTMLInputElement&gt;
+  );
+}</code></pre>
+
+    <div class="callout callout-tip">
+      <strong>Key types:</strong>
+      <code>React.ChangeEvent&lt;HTMLInputElement&gt;</code> (onChange),
+      <code>SubmitEvent</code> (onSubmit),
+      <code>React.MouseEvent&lt;HTMLButtonElement&gt;</code> (onClick).
+      The generic is always the <em>element</em> the event is attached to.
+      <em>Note:</em> <code>React.FormEvent</code> was deprecated in <code>@types/react</code> 19.2.10 — use <code>SubmitEvent</code> / <code>SubmitEventHandler</code> for forms.
+    </div>
+
+    <h2>2. <code>useState</code> inference</h2>
+    <p>TS infers state type from the initial value. This <strong>causes a bug</strong> — the classic empty-array trap:</p>
+
+<pre><code>const [items, setItems] = useState([]);
+// items: never[]  ← you can't add anything!
+
+setItems([...items, { id: 1, name: 'A' }]); // ❌ error</code></pre>
+
+    <p>Fix: annotate <code>useState</code> with the element type:</p>
+
+<pre><code>interface Item { id: number; name: string; }
+
+const [items, setItems] = useState&lt;Item[]&gt;([]);
+setItems([...items, { id: 1, name: 'A' }]); // ✅</code></pre>
+
+    <h2>3. Union state (the workhorse)</h2>
+    <p>This is the pattern you'll see in real apps for anything async — fetch results, auth, modals. It's the <code>type</code> union from Lesson 1 applied to state:</p>
+
+<pre><code>type RequestState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: Item[] }
+  | { status: 'error'; error: string };
+
+const [request, setRequest] = useState&lt;RequestState&gt;({ status: 'idle' });
+
+function load() {
+  setRequest({ status: 'loading' });
+  fetchData().then(
+    (data) =&gt; setRequest({ status: 'success', data }),
+    (error) =&gt; setRequest({ status: 'error', error: error.message }),
+  );
+}</code></pre>
+
+    <p>Because <code>status</code> is a <strong>discriminator</strong>, TS narrows the shape for you:</p>
+
+<pre><code>if (request.status === 'success') {
+  // ✅ request.data is Item[] here, guaranteed
+  request.data.map((item) =&gt; &lt;p&gt;{item.name}&lt;/p&gt;);
+} else if (request.status === 'error') {
+  // ✅ request.error is string here
+}</code></pre>
+
+    <div class="callout callout-warning">
+      <strong>Why this beats a boolean <code>isLoading</code> flag:</strong> it encodes all possible states at once, and the compiler catches illegal combinations (e.g., <code>data</code> present while <code>loading</code>). No more "does <code>data</code> exist?" checks.
+    </div>
+
+    <h2>Quick Check</h2>
+
+    <div class="quiz" data-answers='["infers"]'>
+      <p>When a handler is inline in JSX, TS <em>infers</em> the event type or requires a manual one?</p>
+      <label data-why="TS reads the element and event from the JSX prop itself, so e arrives fully typed."><input type="radio" name="q1" value="infers"> Infers it</label>
+      <label data-why="Manual annotation only becomes necessary when you extract the handler out of JSX into a named function."><input type="radio" name="q1" value="requires"> Requires manual type</label>
+      <label data-why="Inference produces the precise event type here — it never silently degrades to any."><input type="radio" name="q1" value="any"> Uses <code>any</code></label>
+    </div>
+
+    <div class="quiz" data-answers='["Item[]"]'>
+      <p>What should you pass to <code>useState</code> for an initially-empty list?</p>
+      <label data-why="With an empty initial value TS cannot infer the element type — you supply it explicitly."><input type="radio" name="q2" value="Item[]"> <code>useState&lt;Item[]&gt;([])</code></label>
+      <label data-why="This is the classic trap: inference yields never[], so nothing can ever be added to the list."><input type="radio" name="q2" value="Nothing"> <code>useState([])</code></label>
+      <label data-why="It compiles, but you lose all checking on every item — worse than fixing the type properly."><input type="radio" name="q2" value="any"> <code>useState&lt;any[]&gt;([])</code></label>
+    </div>
+
+    <h2>Recipe: events &amp; state</h2>
+    <p><strong>Events:</strong></p>
+    <ol>
+      <li>Inline handler in JSX → no annotation needed (TS infers)</li>
+      <li>Named/extracted handler → annotate the param: <code>(e: React.ChangeEvent&lt;HTMLInputElement&gt;)</code></li>
+      <li>Form submit → <code>SubmitEvent</code>; the generic is always the element the event fires on</li>
+    </ol>
+    <p><strong>State:</strong></p>
+    <ol>
+      <li>Initial value exists → let inference work: <code>useState(0)</code>, <code>useState('a')</code></li>
+      <li>Empty array or <code>null</code> start → annotate explicitly: <code>useState&lt;Item[]&gt;([])</code></li>
+      <li>Async / multi-phase data → discriminated union with a <code>status</code> field</li>
+    </ol>
+
+    <div class="callout callout-tip">
+      <strong>Primary source:</strong> React's official <a href="https://react.dev/learn/typescript#typing-state-and-hooks" target="_blank">TypeScript guide on state &amp; hooks</a>.
+    </div>
+
+    <p>Questions? Ask me anytime.</p>
+
+    <div class="lesson-nav">
+      <span><a href="0001-typing-props.html">← Lesson 1: Typing Props</a></span>
+      <span>Next: <a href="0003-typing-refs.html">Refs &amp; forwardRef</a></span>
+    </div>
+  </div>
+</body>
+</html>

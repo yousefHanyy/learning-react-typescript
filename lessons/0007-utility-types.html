@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 6: Utility Types</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Lesson 6</span>
+    <h1>Utility Types</h1>
+    <p class="lesson-meta">~7 min &middot; Builds on: <a href="0001-typing-props.html">Lesson 1</a> (interfaces) &middot; <a href="0004-generic-components.html">Lesson 4</a> (generics) &middot; <a href="../reference/glossary.html">Glossary</a></p>
+
+    <div class="lesson-nav top">
+      <span><a href="0006-context-and-hooks.html">&larr; Lesson 5: Context &amp; Custom Hooks</a></span>
+      <span>Next: <a href="0008-exercise-context-and-utils.html">Exercise 2</a></span>
+    </div>
+
+    <p>Utility types are small, built-in type functions: you give them a type, they hand back a reshaped one. You don't write them — you <em>use</em> them. Five cover ~95% of what you'll reach for at work.</p>
+
+    <h2>1. <code>Pick</code> &amp; <code>Omit</code> — choose what to keep</h2>
+    <p>Both start from an existing type and take or remove keys. The second argument must be a <code>keyof</code> the source — TS errors on typos.</p>
+
+<pre><code>interface User {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  createdAt: string;
+}
+
+// Only what a list row needs:
+type UserPreview = Pick&lt;User, "id" | "name"&gt;;
+// = { id: string; name: string }
+
+// Everything except the secret:
+type PublicUser = Omit&lt;User, "password"&gt;;
+// = { id, name, email, createdAt }
+
+// Real work example — extend native props but replace one:
+interface SearchInputProps extends Omit&lt;React.InputHTMLAttributes&lt;HTMLInputElement&gt;, "onChange"&gt; {
+  onChange: (value: string) =&gt; void;   // simpler signature
+}</code></pre>
+
+    <div class="callout callout-tip">
+      <strong>Pick vs Omit — how to decide:</strong> picking 2 of 10 fields? Use <code>Pick</code>. Removing 1 of 10? Use <code>Omit</code>. Both are fine — choose the shorter list.
+    </div>
+
+    <h2>2. <code>Partial</code> &amp; <code>Required</code> — toggle optionality</h2>
+
+<pre><code>// All props optional — perfect for "update" payloads:
+type UserPatch = Partial&lt;User&gt;;
+// = { id?: string; name?: string; email?: string; ... }
+
+function updateUser(id: string, patch: Partial&lt;User&gt;) {
+  // caller can pass { name: "New" } without the rest
+}
+
+// The opposite — force every prop to be present:
+type CompleteConfig = Required&lt;{ host?: string; port?: number }&gt;;
+// = { host: string; port: number }</code></pre>
+
+    <div class="callout callout-warning">
+      <strong>Shallow only.</strong> <code>Partial</code> makes top-level keys optional — it doesn't recurse into nested objects. <code>Partial&lt;{ profile: { name: string } }&gt;</code> still requires <code>profile.name</code> if <code>profile</code> is provided.
+    </div>
+
+    <h2>3. <code>Record</code> — a typed dictionary</h2>
+
+<pre><code>type Role = "admin" | "editor" | "viewer";
+
+// Every Role must have an entry — TS enforces completeness:
+const permissions: Record&lt;Role, string[]&gt; = {
+  admin:  ["read", "write", "delete"],
+  editor: ["read", "write"],
+  viewer: ["read"],
+  // missing "viewer"? ❌ error
+};
+
+// Free-form string keys:
+const cache: Record&lt;string, User&gt; = {};
+cache["42"] = { id: "42", name: "Ada", email: "...", password: "...", createdAt: "..." };</code></pre>
+
+    <h2>4. React's own helpers — wrapping a native element</h2>
+    <p>The real-world job: you build a design-system <code>&lt;FancyButton&gt;</code> that <em>looks</em> custom but should accept every normal <code>&lt;button&gt;</code> prop (<code>onClick</code>, <code>disabled</code>, <code>type</code>, <code>aria-*</code>, …). Listing them by hand is endless and always incomplete:</p>
+
+<pre><code>// ❌ Manual — you will forget props, and you repeat React's work:
+interface BadFancyButtonProps {
+  label: string;
+  onClick?: () =&gt; void;
+  disabled?: boolean;
+  // ... what about type? form? aria-label? className? — endless
+}</code></pre>
+
+    <p><code>React.ComponentProps&lt;"button"&gt;</code> solves it: it's a utility that expands to <em>"every prop a <code>&lt;button&gt;</code> accepts, already typed"</em>. One line, always complete:</p>
+
+<pre><code>type AllButtonProps = React.ComponentProps&lt;"button"&gt;;
+// = { onClick?: ..., disabled?: boolean; type?: "button" | "submit" | "reset"; children?: ReactNode; ... }</code></pre>
+
+    <p>So wrapping becomes:</p>
+
+<pre><code>interface FancyButtonProps extends React.ComponentPropsWithoutRef&lt;"button"&gt; {
+  label: string;   // your extra prop, plus everything a &lt;button&gt; has
+}
+
+function FancyButton({ label, className, ...rest }: FancyButtonProps) {
+  return (
+    &lt;button className={`fancy ${className ?? ""}`} {...rest}&gt;
+      {label}
+    &lt;/button&gt;
+  );
+}
+
+// Usage — all native props just work, fully typed:
+&lt;FancyButton label="Save" onClick={handleSave} disabled type="submit" /&gt;</code></pre>
+
+    <p>Two variants exist — they differ only on <code>ref</code>:</p>
+    <ul>
+      <li><code>ComponentProps&lt;"button"&gt;</code> — includes <code>ref</code></li>
+      <li><code>ComponentPropsWithoutRef&lt;"button"&gt;</code> — same, but without <code>ref</code>. Use this when your wrapper <em>doesn't</em> forward a ref (most cases).</li>
+    </ul>
+
+    <p>And when your wrapper <em>replaces</em> a prop, combine with <code>Omit</code>. This is the same trick from section&nbsp;1's <code>SearchInputProps</code> — remove the original, add your version:</p>
+
+<pre><code>// FancyButton decides its own children from `label`, so forbid `children`:
+interface StrictFancyButtonProps
+  extends Omit&lt;React.ComponentPropsWithoutRef&lt;"button"&gt;, "children"&gt; {
+  label: string;
+}
+
+&lt;StrictFancyButtonProps label="Save"&gt;Oops&lt;/StrictFancyButtonProps&gt; // ❌ children is gone — use label instead</code></pre>
+
+    <div class="callout callout-tip">
+      <strong>Shorthand.</strong> <code>ComponentProps&lt;"input"&gt;</code> is just a short alias for the longer <code>React.InputHTMLAttributes&lt;HTMLInputElement&gt;</code> you saw in section&nbsp;1. Same result, less typing.
+    </div>
+
+    <h2>5. The rest at a glance</h2>
+    <table>
+      <tr><th>Utility</th><th>Does</th><th>When you need it</th></tr>
+      <tr><td><code>Exclude&lt;T, U&gt;</code></td><td>Remove members from a union</td><td><code>Exclude&lt;"a"|"b"|"c", "a"&gt;</code> → <code>"b"|"c"</code></td></tr>
+      <tr><td><code>Extract&lt;T, U&gt;</code></td><td>Keep members from a union</td><td>Opposite of <code>Exclude</code></td></tr>
+      <tr><td><code>NonNullable&lt;T&gt;</code></td><td>Strip <code>null | undefined</code></td><td>Clean up <code>string | null</code></td></tr>
+      <tr><td><code>ReturnType&lt;F&gt;</code></td><td>Type of a function's return</td><td><code>ReturnType&lt;typeof useAuth&gt;</code></td></tr>
+    </table>
+
+    <p>You don’t need to memorize these — just recognize them when you see them. Hover in your editor to verify what they produce.</p>
+
+    <h2>Quick Check</h2>
+
+    <div class="quiz" data-answers='["Pick"]'>
+      <p>You have a <code>User</code> with 10 fields; you need a type with just <code>id</code> and <code>name</code>. Which utility?</p>
+      <label data-why="Naming the 2 fields you keep beats listing the 8 you drop."><input type="radio" name="q1" value="Pick"> <code>Pick&lt;User, "id" | "name"&gt;</code></label>
+      <label data-why="Valid but longer here — Omit shines when removing few fields from many, not the reverse."><input type="radio" name="q1" value="Omit"> <code>Omit&lt;User, "password"&gt;</code></label>
+      <label data-why="Partial keeps all 10 keys and makes them optional — a different shape than what you need."><input type="radio" name="q1" value="Partial"> <code>Partial&lt;User&gt;</code></label>
+    </div>
+
+    <div class="quiz" data-answers='["Partial"]'>
+      <p>An update function should accept any subset of <code>User</code> fields. Its parameter type is…</p>
+      <label data-why="Every field becomes optional, so callers send only what changed."><input type="radio" name="q2" value="Partial"> <code>Partial&lt;User&gt;</code></label>
+      <label data-why="Required is the opposite direction — it forces every field to be present."><input type="radio" name="q2" value="Required"> <code>Required&lt;User&gt;</code></label>
+      <label data-why="Record builds key→value dictionaries; an update payload isn't a dictionary of whole Users."><input type="radio" name="q2" value="Record"> <code>Record&lt;string, User&gt;</code></label>
+    </div>
+
+    <div class="quiz" data-answers='["Record"]'>
+      <p>You need a cache object: every string key maps to a <code>User</code>. Which utility?</p>
+      <label data-why="KeyType → ValueType mapping is exactly Record's job."><input type="radio" name="q3" value="Record"> <code>Record&lt;string, User&gt;</code></label>
+      <label data-why="Pick selects named keys of User — string is not one of them, so this is a compile error."><input type="radio" name="q3" value="Pick"> <code>Pick&lt;User, string&gt;</code></label>
+      <label data-why="Exclude filters members of a union type — User isn't a union at all."><input type="radio" name="q3" value="Exclude"> <code>Exclude&lt;User, string&gt;</code></label>
+    </div>
+
+    <h2>Recipe: utility types</h2>
+    <ol>
+      <li>Subset by name → <code>Pick&lt;Source, "a" | "b"&gt;</code> (short keep-list) or <code>Omit&lt;Source, "x"&gt;</code> (short remove-list)</li>
+      <li>All optional → <code>Partial&lt;T&gt;</code>; all required → <code>Required&lt;T&gt;</code> (shallow)</li>
+      <li>String-key dictionary → <code>Record&lt;KeyType, ValueType&gt;</code></li>
+      <li>Wrapping a native element → <code>React.ComponentProps&lt;"tag"&gt;</code> + <code>Omit</code> to replace a prop</li>
+      <li>Union surgery → <code>Exclude&lt;Union, "a"&gt;</code> / <code>Extract&lt;Union, "a"&gt;</code></li>
+    </ol>
+
+    <div class="callout callout-tip">
+      <strong>Primary source:</strong> <a href="https://www.typescriptlang.org/docs/handbook/utility-types.html" target="_blank">TS Handbook: Utility Types</a> — the complete list with playgrounds.
+    </div>
+
+    <p>Questions? Ask me anytime.</p>
+
+    <div class="lesson-nav">
+      <span><a href="0006-context-and-hooks.html">← Lesson 5: Context &amp; Custom Hooks</a></span>
+      <span>Next: <a href="0008-exercise-context-and-utils.html">Exercise 2</a></span>
+    </div>
+  </div>
+</body>
+</html>

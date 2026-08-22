@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 3: Refs</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Lesson 3</span>
+    <h1>Typing Refs</h1>
+    <p class="lesson-meta">~6 min &middot; Builds on: <a href="0001-typing-props.html">Lesson 1</a>, <a href="0002-typing-events-and-state.html">Lesson 2</a> &middot; <a href="../reference/glossary.html">Glossary</a></p>
+
+    <div class="lesson-nav top">
+      <span><a href="0002-typing-events-and-state.html">&larr; Lesson 2: Events &amp; State</a></span>
+      <span>Next: <a href="0004-generic-components.html">Generic Components</a></span>
+    </div>
+
+    <p>Refs come in two flavors at work, and TS types them differently. This lesson covers both, plus the current way to expose a ref from a custom component.</p>
+
+    <h2>1. DOM refs: <code>useRef&lt;T&gt;(null)</code></h2>
+
+<pre><code>function SearchBox() {
+  const inputRef = useRef&lt;HTMLInputElement&gt;(null);
+
+  useEffect(() =&gt; {
+    inputRef.current?.focus();   // ✅ optional chaining
+  }, []);
+
+  return &lt;input ref={inputRef} /&gt;;
+}</code></pre>
+
+    <p>Because the initial value is <code>null</code>, TS types <code>current</code> as <code>HTMLInputElement | null</code>. You must check before using — hence <code>?.focus()</code> or an <code>if</code> guard.</p>
+
+    <div class="callout callout-warning">
+      <strong>Never do this:</strong> <code>useRef&lt;HTMLInputElement&gt;()</code> with no argument. It returns <code>undefined</code> initially, but the type lies and says <code>HTMLInputElement</code> — you get a non-null reference to nothing. Always pass <code>null</code> for DOM refs.
+    </div>
+
+    <h2>2. Value refs: <code>useRef&lt;number&gt;(0)</code></h2>
+
+<pre><code>function Timer() {
+  const intervalRef = useRef&lt;number | null&gt;(null);
+
+  function start() {
+    intervalRef.current = window.setInterval(tick, 1000);
+  }
+
+  function stop() {
+    if (intervalRef.current !== null) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }
+}</code></pre>
+
+    <p><code>useRef</code> is right here because mutating <code>current</code> does <strong>not</strong> trigger re-renders — you need the id to persist across renders, but the UI never changes when it does. Initialized with a real value, so <code>current</code> is plain <code>number | null</code>.</p>
+
+    <div class="callout callout-warning">
+      <strong>Don't use <code>useRef</code> for a visible counter.</strong> Ref mutations never re-render, so the UI would stay frozen. If a value must appear on screen, that's <code>useState</code>. Refs are for values that persist silently: timer ids, previous-prop trackers, flags, scroll positions.
+    </div>
+
+    <p>The generic <code>&lt;number&gt;</code> is the same mechanism you asked about with <code>useState&lt;RequestState&gt;</code>.</p>
+
+    <h2>3. Passing refs to components (React 19)</h2>
+    <p>Since React 19, <code>ref</code> is just a normal prop. Type it with <code>React.Ref&lt;T&gt;</code> — which accepts both object refs and callback refs:</p>
+
+<pre><code>interface InputProps {
+  label: string;
+  ref?: React.Ref&lt;HTMLInputElement&gt;;   // typed like any prop
+}
+
+function LabeledInput({ label, ref }: InputProps) {
+  return (
+    &lt;label&gt;
+      {label}
+      &lt;input ref={ref} /&gt;
+    &lt;/label&gt;
+  );
+}</code></pre>
+
+    <div class="callout callout-tip">
+      <strong>React 18 codebases (still common):</strong> you'll see <code>forwardRef</code> instead — <code>forwardRef&lt;HTMLInputElement, InputProps&gt;((props, ref) =&gt; ...)</code>. The type arguments are always <code>&lt;RefType, PropsType&gt;</code>. Just recognize it; new code uses the prop form above.
+    </div>
+
+    <h2>Quick Check</h2>
+
+    <div class="quiz" data-answers='["HTMLInputElement | null"]'>
+      <p>Type of <code>inputRef.current</code> after <code>useRef&lt;HTMLInputElement&gt;(null)</code>?</p>
+      <label data-why="The generic sets what it will hold; null is there because you initialized with null — before mount nothing is attached yet."><input type="radio" name="q1" value="HTMLInputElement | null"> <code>HTMLInputElement | null</code></label>
+      <label data-why="That would be a lie before the element mounts — .current genuinely is null at first."><input type="radio" name="q1" value="HTMLInputElement"> <code>HTMLInputElement</code></label>
+      <label data-why="Passing null initializes current to null, not undefined — undefined comes from useRef() called with no argument."><input type="radio" name="q1" value="undefined"> <code>undefined</code></label>
+    </div>
+
+    <div class="quiz" data-answers='["React.Ref&lt;T&gt;"]'>
+      <p>Best type for a <code>ref</code> prop on a component in React 19?</p>
+      <label data-why="React.Ref accepts both object refs and callback refs, so callers can pass either style."><input type="radio" name="q2" value="React.Ref<T>"> <code>React.Ref&lt;T&gt;</code></label>
+      <label data-why="RefObject is one specific shape — it rejects callback refs like (node) => focus(), which callers legitimately use."><input type="radio" name="q2" value="RefObject"> <code>React.RefObject&lt;T&gt;</code></label>
+      <label data-why="You'd lose every check on .current in consumers of your component."><input type="radio" name="q2" value="any"> <code>any</code></label>
+    </div>
+
+    <h2>Recipe: refs</h2>
+    <ol>
+      <li>DOM element → <code>useRef&lt;HTMLInputElement&gt;(null)</code>, attach with <code>ref={...}</code>, always guard: <code>.current?.focus()</code></li>
+      <li>Silent persisted value → <code>useRef&lt;number | null&gt;(null)</code>, mutate <code>.current</code> freely — no re-render</li>
+      <li>If it shows on screen → that's <code>useState</code>, not a ref</li>
+      <li>Forwarding to your own component → <code>ref?: React.Ref&lt;T&gt;</code> as a normal prop (React 19)</li>
+    </ol>
+
+    <div class="callout callout-tip">
+      <strong>Primary source:</strong> <a href="https://react.dev/reference/react/useRef" target="_blank">React useRef reference</a> and <a href="https://react.dev/reference/react/forwardRef" target="_blank">forwardRef docs</a> (shows the React 19 ref-as-prop pattern).
+    </div>
+
+    <p>Questions? Ask me anytime.</p>
+
+    <div class="lesson-nav">
+      <span><a href="0002-typing-events-and-state.html">← Lesson 2: Events &amp; State</a></span>
+      <span>Next: <a href="0004-generic-components.html">Generic Components</a></span>
+    </div>
+  </div>
+</body>
+</html>

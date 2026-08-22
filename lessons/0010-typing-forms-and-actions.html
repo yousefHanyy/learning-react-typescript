@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 8: Forms &amp; Actions</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Lesson 8</span>
+    <h1>Forms &amp; Actions</h1>
+    <p class="lesson-meta">~8 min &middot; Builds on: <a href="0002-typing-events-and-state.html">Lesson 2</a> (SubmitEvent) &middot; <a href="0006-context-and-hooks.html">Lesson 5</a> (hooks) &middot; <a href="../reference/glossary.html">Glossary</a></p>
+
+    <div class="lesson-nav top">
+      <span><a href="0009-typing-usereducer.html">&larr; Lesson 7: Typing useReducer</a></span>
+      <span>Next: <a href="0011-exercise-reducers-and-forms.html">Exercise 3</a></span>
+    </div>
+
+    <p>React 19 changed how forms get written. You'll see both styles in production — the classic <code>onSubmit</code> you already know, and the newer <code>action</code> prop. This lesson covers typing both, plus <code>useActionState</code>, the hook that pairs with them.</p>
+
+    <h2>Recap: the classic way (still everywhere)</h2>
+
+<pre><code>import type { SubmitEventHandler } from "react";   // FormEvent is deprecated
+
+function CommentForm() {
+  const [text, setText] = useState("");
+
+  const handleSubmit: SubmitEventHandler&lt;HTMLFormElement&gt; = (e) =&gt; {
+    e.preventDefault();
+    api.post(text);            // text is controlled state — always current
+  };
+
+  return (
+    &lt;form onSubmit={handleSubmit}&gt;
+      &lt;textarea value={text} onChange={(e) =&gt; setText(e.target.value)} /&gt;
+      &lt;button&gt;Post&lt;/button&gt;
+    &lt;/form&gt;
+  );
+}</code></pre>
+
+    <p>Controlled inputs mean you have the value at all times — ideal when validation runs <em>as the user types</em>. But it's a lot of plumbing per field.</p>
+
+    <h2>The React 19 way: the <code>action</code> prop</h2>
+    <p>Pass an async function straight to the form. No <code>preventDefault</code>, no controlled state — inputs become uncontrolled, identified by their <code>name</code>:</p>
+
+<pre><code>async function addComment(formData: FormData) {
+  const text = formData.get("text");     // ← FormDataEntryValue | null
+  if (typeof text !== "string") return;  // narrow before use!
+  await api.post(text);
+}
+
+function CommentForm() {
+  return (
+    &lt;form action={addComment}&gt;
+      &lt;textarea name="text" /&gt;
+      &lt;button&gt;Post&lt;/button&gt;
+    &lt;/form&gt;
+  );
+}</code></pre>
+
+    <p>The typing contract:</p>
+    <ul>
+      <li><strong>Action type:</strong> <code>(formData: FormData) =&gt; void | Promise&lt;void&gt;</code> — React runs it in a transition and resets the form on success</li>
+      <li><strong>The one gotcha:</strong> <code>formData.get(name)</code> returns <code>FormDataEntryValue | null</code> — that's <code>string | File | null</code>. It's never just a string. Always narrow (<code>typeof x === "string"</code>) before using it. Forgetting this is <em>the</em> beginner bug with actions.</li>
+    </ul>
+
+    <div class="callout callout-warning">
+      <strong>No <code>name</code>, no data.</strong> <code>formData.get("email")</code> reads the input's <code>name</code> attribute, not its id or label. Missing <code>name</code> = silent <code>null</code>.
+    </div>
+
+    <h2><code>useActionState</code> — actions that report back</h2>
+    <p>Most real forms need to show errors or results. <code>useActionState</code> wraps your action with a state slot:</p>
+
+<pre><code>import { useActionState } from "react";
+
+interface FormState {
+  error: string | null;
+}
+
+async function submitComment(prev: FormState, formData: FormData): Promise&lt;FormState&gt; {
+  const text = formData.get("text");
+  if (typeof text !== "string" || text.trim() === "") {
+    return { error: "Comment can't be empty" };
+  }
+  await api.post(text);
+  return { error: null };
+}
+
+function CommentForm() {
+  const [state, submitAction, isPending] =
+    useActionState(submitComment, { error: null });
+
+  return (
+    &lt;form action={submitAction}&gt;
+      &lt;textarea name="text" disabled={isPending} /&gt;
+      {state.error &amp;&amp; &lt;p role="alert"&gt;{state.error}&lt;/p&gt;}
+      &lt;button disabled={isPending}&gt;{isPending ? "Posting…" : "Post"}&lt;/button&gt;
+    &lt;/form&gt;
+  );
+}</code></pre>
+
+    <p>Type inference does the work: <code>state</code> is <code>FormState</code>, inferred from the initial value <code>{ error: null }</code>. The three returned values:</p>
+    <ol>
+      <li><code>state</code> — whatever your action last returned (typed from the initial value)</li>
+      <li><code>submitAction</code> — the wrapped function, ready for <code>&lt;form action&gt;</code></li>
+      <li><code>isPending</code> — boolean, true while the action's promise is running</li>
+    </ol>
+
+    <div class="callout callout-warning">
+      <strong>The argument flip:</strong> inside <code>useActionState</code>, your action receives <code>(prevState, formData)</code> — previous state <em>first</em>. Without the hook it's just <code>(formData)</code>. Mixing these up is the most common action bug.
+    </div>
+
+    <div class="callout callout-tip">
+      <strong>Ties together everything so far:</strong> the error field is nullable state (Lesson 5 honesty), <code>isPending</code> drives UI (Lesson 3's rule — visible values need <code>useState</code>-style state), and for multi-field forms you'd graduate the error shape into a discriminated union (Lesson 2).
+    </div>
+
+    <h2>Which style when?</h2>
+    <table>
+      <tr><th></th><th><code>onSubmit</code> (classic)</th><th><code>action</code> (React 19)</th></tr>
+      <tr><td>Input control</td><td>Controlled — value in state</td><td>Uncontrolled — read from FormData</td></tr>
+      <tr><td>Best for</td><td>Live per-keystroke validation</td><td>Simple submissions, search boxes, comment forms</td></tr>
+      <tr><td>Pending state</td><td>Manual (<code>useState</code> + try/finally)</td><td>Free via <code>useActionState</code>'s <code>isPending</code></td></tr>
+      <tr><td>Form reset</td><td>Manual (<code>setText("")</code>)</td><td>Automatic on success</td></tr>
+    </table>
+
+    <h2>Quick Check</h2>
+
+    <div class="quiz" data-answers='["union"]'>
+      <p>What does <code>formData.get("title")</code> return?</p>
+      <label data-why="Entries may be absent (null) or hold files — hence string | File | null, and you narrow before use."><input type="radio" name="q1" value="union"> <code>FormDataEntryValue | null</code> — narrow before use</label>
+      <label data-why="Only true after your own typeof check — get() itself can't promise a string."><input type="radio" name="q1" value="string"> <code>string</code></label>
+      <label data-why="FormData carries values keyed by name; it never returns DOM elements."><input type="radio" name="q1" value="element"> The HTMLInputElement</label>
+    </div>
+
+    <div class="quiz" data-answers='["flip"]'>
+      <p>An action wrapped by <code>useActionState</code> has which signature?</p>
+      <label data-why="State threads through calls: previous state first, then the form data, so you can compute the next state."><input type="radio" name="q2" value="flip"> <code>(prevState, formData)</code></label>
+      <label data-why="(formData) alone is the bare action-prop signature — useActionState prepends prevState in front."><input type="radio" name="q2" value="plain"> <code>(formData)</code></label>
+      <label data-why="Actions receive FormData, not events — events belong to onSubmit handlers."><input type="radio" name="q2" value="event"> <code>(event)</code></label>
+    </div>
+
+    <div class="quiz" data-answers='["pending"]'>
+      <p>You need a disabled button while submitting. What do you use?</p>
+      <label data-why="The third return of useActionState — true exactly while the action's promise is running."><input type="radio" name="q3" value="pending"> <code>isPending</code> from <code>useActionState</code></label>
+      <label data-why="Possible manually, but redundant — React already tracks it, and refs don't re-render to update the UI anyway."><input type="radio" name="q3" value="ref"> A ref counting submissions</label>
+      <label data-why="Submissions don't block the UI by themselves — buttons stay clickable unless disabled."><input type="radio" name="q3" value="none"> Nothing — forms block automatically</label>
+    </div>
+
+    <h2>Recipe: typed forms &amp; actions</h2>
+    <ol>
+      <li>Simple submission → give inputs <code>name</code>s, write <code>async function x(formData: FormData)</code>, pass to <code>&lt;form action={x}&gt;</code></li>
+      <li>Every <code>get()</code> → narrow immediately: <code>const v = fd.get("x"); if (typeof v !== "string") return;</code></li>
+      <li>Need errors/results → define a <code>FormState</code> interface, wrap with <code>useActionState(action, initialState)</code>; action signature becomes <code>(prevState, formData)</code></li>
+      <li>Return a fresh state object from every path of the action; render UI from it</li>
+      <li>Use <code>isPending</code> for disabled/spinner states</li>
+      <li>Live per-keystroke validation → fall back to controlled inputs + <code>onSubmit</code> with <code>SubmitEventHandler&lt;HTMLFormElement&gt;</code></li>
+    </ol>
+
+    <div class="callout callout-tip">
+      <strong>Primary sources:</strong> <a href="https://react.dev/reference/react-dom/components/form" target="_blank">react.dev: &lt;form&gt;</a> and <a href="https://react.dev/reference/react/useActionState" target="_blank">react.dev: useActionState</a>.
+    </div>
+
+    <p>Questions? Ask me anytime.</p>
+
+    <div class="lesson-nav">
+      <span><a href="0009-typing-usereducer.html">&larr; Lesson 7: Typing useReducer</a></span>
+      <span>Next: <a href="0011-exercise-reducers-and-forms.html">Exercise 3</a></span>
+    </div>
+  </div>
+</body>
+</html>

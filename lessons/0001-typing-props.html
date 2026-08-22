@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 1: Typing Props</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Lesson 1</span>
+    <h1>Typing Props</h1>
+    <p class="lesson-meta">~5 min &middot; <a href="../reference/glossary.html">Glossary</a></p>
+
+    <div class="lesson-nav top">
+      <span></span>
+      <span>Next: <a href="0002-typing-events-and-state.html">Events &amp; State</a></span>
+    </div>
+
+    <p>The first thing you do for every React+TS component: <strong>type its props</strong>. Two patterns cover 90% of what you'll see in production.</p>
+
+    <h2><code>interface</code> (default)</h2>
+
+<pre><code>interface ButtonProps {
+  label: string;
+  variant: 'primary' | 'secondary';
+  disabled?: boolean;
+  onClick: () => void;
+}
+
+function Button({ label, variant, disabled, onClick }: ButtonProps) {
+  return &lt;button className={`btn btn-${variant}`} disabled={disabled} onClick={onClick}&gt;{label}&lt;/button&gt;;
+}</code></pre>
+
+    <div class="callout callout-tip">
+      <strong>Convention:</strong> <code>ComponentNameProps</code> — e.g. <code>ButtonProps</code>, <code>CardProps</code>. This is what you'll see in every production codebase.
+    </div>
+
+    <h2><code>type</code> (for unions/intersections)</h2>
+
+<pre><code>type ButtonProps = {
+  label: string;
+  variant: 'primary' | 'secondary';
+} &amp; (
+  | { onClick: () => void; href?: never }
+  | { href: string; onClick?: never }
+);</code></pre>
+
+    <div class="callout callout-warning">
+      <strong>Rule:</strong> <code>interface</code> for plain objects. <code>type</code> when you need unions, intersections, or mapped types. Ask "could this be extended?" — if yes, use <code>interface</code>.
+    </div>
+
+    <h2><code>children</code></h2>
+
+<pre><code>interface CardProps {
+  title: string;
+  children: React.ReactNode;
+}</code></pre>
+
+    <p><code>React.ReactNode</code> accepts JSX, strings, numbers, null, undefined, and arrays — it's the standard choice.</p>
+
+    <h2>Quick Check</h2>
+
+    <div class="quiz" data-answers='["interface"]'>
+      <p>Default keyword for standard component props?</p>
+      <label data-why="Interfaces extend and merge naturally — the default for plain prop objects in production codebases."><input type="radio" name="q1" value="interface"> <code>interface</code></label>
+      <label data-why="type works, but the convention reserves it for unions and intersections — using it everywhere blurs intent."><input type="radio" name="q1" value="type"> <code>type</code></label>
+      <label data-why="Classes create runtime instances; props are just a data shape to check."><input type="radio" name="q1" value="class"> <code>class</code></label>
+    </div>
+
+    <div class="quiz" data-answers='["ReactNode"]'>
+      <p>Which type for <code>children</code>?</p>
+      <label data-why="Too narrow — ReactElement excludes plain strings and numbers as children."><input type="radio" name="q2" value="ReactElement"> <code>React.ReactElement</code></label>
+      <label data-why="Widest renderable type: JSX, strings, numbers, null, undefined, arrays."><input type="radio" name="q2" value="ReactNode"> <code>React.ReactNode</code></label>
+      <label data-why="JSX.Element only describes actual elements — text-only children would fail the check."><input type="radio" name="q2" value="JSXElement"> <code>JSX.Element</code></label>
+    </div>
+
+    <h2>Recipe: typing props</h2>
+    <ol>
+      <li><code>interface ComponentNameProps { ... }</code> — always this naming</li>
+      <li><code>children</code> → <code>React.ReactNode</code></li>
+      <li>Callbacks → arrow signatures: <code>onClick: (id: string) =&gt; void</code></li>
+      <li>Optional prop → <code>disabled?: boolean</code></li>
+      <li>Union of shapes or intersections → switch to <code>type</code></li>
+    </ol>
+
+    <div class="callout callout-tip">
+      <strong>Primary source:</strong> <a href="https://react.dev/learn/typescript" target="_blank">React TypeScript docs</a> and <a href="https://react-typescript-cheatsheet.netlify.app/" target="_blank">React TypeScript Cheatsheet</a>.
+    </div>
+
+    <p>Questions? Ask me anytime.</p>
+
+    <div class="lesson-nav">
+      <span></span>
+      <span>Next: <a href="0002-typing-events-and-state.html">Events &amp; State</a></span>
+    </div>
+  </div>
+</body>
+</html>

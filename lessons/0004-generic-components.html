@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 4: Generic Components</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Lesson 4</span>
+    <h1>Generic Components</h1>
+    <p class="lesson-meta">~7 min &middot; Builds on: <a href="0002-typing-events-and-state.html">Lesson 2</a> (generics) &middot; <a href="../reference/glossary.html">Glossary</a></p>
+
+    <div class="lesson-nav top">
+      <span><a href="0003-typing-refs.html">&larr; Lesson 3: Refs</a></span>
+      <span>Next: <a href="0005-exercise-core-typing.html">Exercise 1</a></span>
+    </div>
+
+    <p>You already understand generics from <code>useState&lt;T&gt;</code>. Now the same idea moves to <em>components</em>: a component whose props type depends on a type you supply <strong>at the call site</strong>.</p>
+
+    <h2>The core pattern: <code>List&lt;T&gt;</code></h2>
+
+<pre><code>interface ListProps&lt;T&gt; {
+  items: T[];
+  renderItem: (item: T) =&gt; React.ReactNode;
+}
+
+function List&lt;T&gt;({ items, renderItem }: ListProps&lt;T&gt;) {
+  return &lt;ul&gt;{items.map(renderItem)}&lt;/ul&gt;;
+}
+
+// TypeScript infers T from what you pass:
+&lt;List
+  items={users}                // T = User (inferred, no annotation needed)
+  renderItem={(u) =&gt; &lt;li&gt;{u.name}&lt;/li&gt;}
+/&gt;</code></pre>
+
+    <p>Pass <code>users</code> (an array of <code>User</code>) and <code>T</code> becomes <code>User</code> automatically — <code>renderItem</code>'s <code>u</code> is typed as <code>User</code>, with full autocomplete and no <code>any</code>.</p>
+
+    <div class="callout callout-tip">
+      <strong>This is the single most common generic component in production</strong> — lists, dropdowns, tables, virtualized grids. Once you see it, you'll notice it everywhere.
+    </div>
+
+    <h2>Constraining <code>T</code> with <code>extends</code></h2>
+    <p>If you need <code>T</code> to guarantee certain properties, constrain it. This lets you read <code>item.id</code> without erroring:</p>
+
+<pre><code>interface Identifiable { id: string | number; }
+
+function List&lt;T extends Identifiable&gt;({ items }: { items: T[] }) {
+  return (
+    &lt;ul&gt;
+      {items.map((item) =&gt; &lt;li key={item.id}&gt;{item.id}&lt;/li&gt;)}
+    &lt;/ul&gt;
+  );
+}
+
+&lt;List items={users} /&gt;            // ✅ users have an id
+&lt;List items={[1, 2, 3]} /&gt;        // ❌ numbers have no id</code></pre>
+
+    <h2>A production example: Select</h2>
+    <p>Generic components really shine for "give me an item, get back its value" components:</p>
+
+<pre><code>interface SelectProps&lt;T&gt; {
+  options: T[];
+  getValue: (option: T) =&gt; string;
+  onSelect: (value: string) =&gt; void;
+}
+
+function Select&lt;T&gt;({ options, getValue, onSelect }: SelectProps&lt;T&gt;) {
+  return (
+    &lt;select onChange={(e) =&gt; onSelect(e.currentTarget.value)}&gt;
+      {options.map((opt) =&gt; (
+        &lt;option key={getValue(opt)} value={getValue(opt)}&gt;
+          {String(opt)}
+        &lt;/option&gt;
+      ))}
+    &lt;/select&gt;
+  );
+}
+
+// Works with users, products, countries — any type:
+&lt;Select
+  options={countries}
+  getValue={(c) =&gt; c.code}
+  onSelect={(code) =&gt; setSelectedCode(code)}
+/&gt;</code></pre>
+
+    <div class="callout callout-warning">
+      <strong>Gotcha:</strong> in a <code>.tsx</code> file, a generic <em>arrow</em> function needs a trailing comma or <code>extends</code> — otherwise JSX confuses <code>&lt;T&gt;</code> with a tag:
+      <code>const List = &lt;T,&gt;({ items }: { items: T[] }) =&gt; ...</code>.
+      Using a <code>function</code> declaration (as above) sidesteps this entirely.
+    </div>
+
+    <h2>Quick Check</h2>
+
+    <div class="quiz" data-answers='["inferred"]'>
+      <p>When you pass <code>items={users}</code> to <code>List&lt;T&gt;</code>, how does TS determine <code>T</code>?</p>
+      <label data-why="Call-site inference: T flows from the items argument's element type — no manual annotation needed."><input type="radio" name="q1" value="inferred"> Inferred from the prop</label>
+      <label data-why="Explicit generics are only for when inference cannot resolve T from the arguments."><input type="radio" name="q1" value="required"> Requires <code>&lt;User&gt;</code> always</label>
+      <label data-why="Generic inference is precise here — it resolves to User, never a fallback to any."><input type="radio" name="q1" value="implicit"> Uses <code>any</code></label>
+    </div>
+
+    <div class="quiz" data-answers='["extends"]'>
+      <p>How do you require <code>T</code> to have a specific property?</p>
+      <label data-why="extends constrains T to shapes that have id — so item.id is guaranteed readable inside."><input type="radio" name="q2" value="extends"> <code>T extends Identifiable</code></label>
+      <label data-why="implements belongs to classes declaring conformance — it is not valid syntax on a type parameter."><input type="radio" name="q2" value="interface"> <code>T implements Identifiable</code></label>
+      <label data-why="typeof queries the type of an existing value — it has nothing to do with constraining generics."><input type="radio" name="q2" value="typeof"> <code>T typeof Identifiable</code></label>
+    </div>
+
+    <h2>Recipe: generic component</h2>
+    <ol>
+      <li>Put <code>T</code> in the props interface where values flow through: <code>interface ListProps&lt;T&gt; { items: T[] }</code></li>
+      <li>Declare it on a <code>function</code> statement: <code>function List&lt;T&gt;({...}: ListProps&lt;T&gt;) { ... }</code> (avoids the .tsx arrow gotcha)</li>
+      <li>Need guaranteed properties? Constrain: <code>&lt;T extends Identifiable&gt;</code></li>
+      <li>At the call site, pass real data — T is inferred, never written manually</li>
+    </ol>
+
+    <div class="callout callout-tip">
+      <strong>Primary source:</strong> <a href="https://www.typescriptlang.org/docs/handbook/2/generics.html" target="_blank">TypeScript Handbook: Generics</a> — then see the <a href="https://react-typescript-cheatsheet.netlify.app/docs/advanced/patterns_by_usecase/" target="_blank">Cheatsheet's patterns section</a> for more generic React patterns.
+    </div>
+
+    <p>Questions? Ask me anytime.</p>
+
+    <div class="lesson-nav">
+      <span><a href="0003-typing-refs.html">← Lesson 3: Refs</a></span>
+      <span>Next: <a href="0005-exercise-core-typing.html">Exercise 1</a></span>
+    </div>
+  </div>
+</body>
+</html>

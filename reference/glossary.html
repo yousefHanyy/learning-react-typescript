@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TS + React Glossary</title>
+  <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>TypeScript + React Glossary</h1>
+    <p class="lesson-meta">Reference &middot; Last updated 2026-07-22</p>
+
+    <h2>Core Types</h2>
+    <dl>
+      <dt><code>React.ReactNode</code></dt>
+      <dd>Anything React can render: JSX, strings, numbers, booleans, <code>null</code>, <code>undefined</code>, or arrays of these. Use for <code>children</code> when you accept any renderable content.</dd>
+      <dt><code>React.ReactElement</code></dt>
+      <dd>A single JSX element. Less permissive than <code>ReactNode</code>. Rarely needed.</dd>
+      <dt><code>React.FC&lt;Props&gt;</code></dt>
+      <dd>Type alias for function components. Implicitly includes <code>children</code>. <strong>Avoided in most modern codebases</strong>.</dd>
+      <dt><code>JSX.Element</code></dt>
+      <dd>Return type of <code>createElement</code>. Returned by functional components.</dd>
+    </dl>
+
+    <h2>Event Types</h2>
+    <dl>
+      <dt><code>React.MouseEventHandler&lt;HTMLButtonElement&gt;</code></dt>
+      <dd>Type for <code>onClick</code> handlers.</dd>
+      <dt><code>React.ChangeEventHandler&lt;HTMLInputElement&gt;</code></dt>
+      <dd>Type for <code>onChange</code> handlers.</dd>
+      <dt><code>SubmitEvent</code> / <code>React.SubmitEventHandler&lt;HTMLFormElement&gt;</code></dt>
+      <dd>Type for <code>onSubmit</code> handlers. <code>React.FormEvent</code> was deprecated in <code>@types/react</code> 19.2.10.</dd>
+      <dt><code>React.KeyboardEventHandler</code></dt>
+      <dd>Type for <code>onKeyDown</code> / <code>onKeyUp</code> handlers.</dd>
+    </dl>
+
+    <h2>Ref &amp; Hook Types</h2>
+    <dl>
+      <dt><code>React.RefObject&lt;T&gt;</code></dt>
+      <dd>Return type of <code>useRef</code> when initialized with <code>null</code>.</dd>
+      <dt><code>React.MutableRefObject&lt;T&gt;</code></dt>
+      <dd>Return type of <code>useRef</code> with a non-null initial value.</dd>
+      <dt><code>React.Dispatch&lt;React.SetStateAction&lt;T&gt;&gt;</code></dt>
+      <dd>Type of the setter returned by <code>useState</code>. Usually inferred.</dd>
+    </dl>
+
+    <h2>Utility Types</h2>
+    <dl>
+      <dt><code>Pick&lt;T, K&gt;</code></dt>
+      <dd>Creates a type picking only keys <code>K</code> from <code>T</code>.</dd>
+      <dt><code>Omit&lt;T, K&gt;</code></dt>
+      <dd>Creates a type omitting keys <code>K</code> from <code>T</code>.</dd>
+      <dt><code>Partial&lt;T&gt;</code></dt>
+      <dd>Makes all properties of <code>T</code> optional.</dd>
+      <dt><code>Required&lt;T&gt;</code></dt>
+      <dd>Makes all properties of <code>T</code> required.</dd>
+    </dl>
+
+    <h2>Patterns</h2>
+    <dl>
+      <dt><code>Render prop</code></dt>
+      <dd>A prop that is a function, called by the component to let the caller decide how something renders — e.g. <code>renderItem={(item) =&gt; ...}</code> on a <code>List</code>, or a per-column <code>render?: (value) =&gt; ReactNode</code>.</dd>
+      <dt><code>Hooks vs render props</code></dt>
+      <dd><strong>Sharing logic/state</strong> → hooks replaced render props (e.g. <code>useOnlineStatus()</code> beats <code>&lt;OnlineStatus render={...} /&gt;</code>). <strong>Customizing rendering</strong> → render props remain the standard; hooks can't do this (a hook can't decide how a component renders its children).</dd>
+      <dt><code>Discriminated union state</code></dt>
+      <dd>A state type with a literal <code>status</code> field that TS narrows on — the standard for async/fetch state. See Lesson 2.</dd>
+    </dl>
+
+    <h2>Conventions</h2>
+    <dl>
+      <dt><code>interface Props { ... }</code></dt>
+      <dd>Preferred for public API props. Extensible. Default choice.</dd>
+      <dt><code>type Props = { ... }</code></dt>
+      <dd>Use for unions, intersections, mapped types. Not extensible.</dd>
+      <dt><code>ComponentNameProps</code></dt>
+      <dd>Naming convention e.g. <code>ButtonProps</code>, <code>CardProps</code>.</dd>
+    </dl>
+
+    <p><a href="../lessons/0001-typing-props.html">Back to Lesson 1</a></p>
+  </div>
+</body>
+</html>

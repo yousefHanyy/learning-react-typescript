@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lesson 5: Context & Custom Hooks</title>
+    <link rel="stylesheet" href="../assets/style.css" />
+    <script src="../assets/quiz.js" defer></script>
+  </head>
+  <body>
+    <div class="container">
+      <span class="tag">Lesson 5</span>
+      <h1>Context &amp; Custom Hooks</h1>
+      <p class="lesson-meta">
+        ~8 min &middot; Builds on:
+        <a href="0002-typing-events-and-state.html">Lesson 2</a> (state)
+        &middot; <a href="0004-generic-components.html">Lesson 4</a> (inference)
+        &middot; <a href="../reference/glossary.html">Glossary</a>
+      </p>
+
+      <div class="lesson-nav top">
+        <span
+          ><a href="0005-exercise-core-typing.html"
+            >&larr; Exercise 1: Core Typing</a
+          ></span
+        >
+        <span>Next: <a href="0007-utility-types.html">Utility Types</a></span>
+      </div>
+
+      <p>
+        Prop drilling is why context exists. But the way professional codebases
+        <em>type</em> context has a specific shape — and it always comes wrapped
+        in a custom hook. You've been writing hooks since Lesson 2; now they
+        become the public API.
+      </p>
+
+      <h2>Basic typing: let the default value infer</h2>
+      <p>
+        <code>useContext</code> gets its type entirely from
+        <code>createContext&lt;T&gt;</code> — you never annotate it at the call
+        site:
+      </p>
+
+      <pre><code>type Theme = "light" | "dark" | "system";
+
+const ThemeContext = createContext&lt;Theme&gt;("system");
+
+// Inside any component — type flows through automatically:
+const theme = useContext(ThemeContext);   // theme: Theme</code></pre>
+
+      <p>
+        This only works when you have a sensible default. So when does
+        <code>null</code> enter the picture?
+      </p>
+
+      <h2>The production pattern: <code>| null</code> + a guard hook</h2>
+
+      <pre><code>import { createContext, useContext, useState, useMemo } from "react";
+
+interface User {
+  id: string;
+  name: string;
+}
+
+interface AuthContextValue {
+  user: User | null;
+  login: (user: User) =&gt; void;
+  logout: () =&gt; void;
+}
+
+// The default IS null — so the type must say so:
+const AuthContext = createContext&lt;AuthContextValue | null&gt;(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState&lt;User | null&gt;(null);
+
+  const value = useMemo(
+    () =&gt; ({
+      user,
+      login: (u: User) =&gt; setUser(u),
+      logout: () =&gt; setUser(null),
+    }),
+    [user]
+  );
+
+  return &lt;AuthContext value={value}&gt;{children}&lt;/AuthContext&gt;;
+}
+
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within &lt;AuthProvider&gt;");
+  return ctx;
+}</code></pre>
+
+      <p>Three things are happening here — this is the whole pattern:</p>
+      <ol>
+        <li>
+          <strong>The type is honest:</strong>
+          <code>AuthContextValue | null</code>, because outside a provider the
+          value genuinely <em>is</em> <code>null</code>. Lying here
+          (<code>createContext&lt;AuthContextValue&gt;(null!)</code>) trades a
+          crash for a silent one.
+        </li>
+        <li>
+          <strong>The hook eliminates <code>null</code>:</strong> after the
+          <code>if (!ctx) throw</code> check, TS narrows the return to plain
+          <code>AuthContextValue</code>. Consumers never see <code>null</code>,
+          never write <code>?.()</code>, never get surprised.
+        </li>
+        <li>
+          <strong>The hook is the API:</strong> components call
+          <code>useAuth()</code>. They never import
+          <code>AuthContext</code> itself — many teams don't even export it. If
+          someone uses the hook outside the provider, they get a clear error
+          instead of mysterious <code>null</code>.
+        </li>
+      </ol>
+
+      <div class="callout callout-tip">
+        <strong>React 19:</strong> you can now render
+        <code>&lt;AuthContext value={...}&gt;</code> directly instead of
+        <code>&lt;AuthContext.Provider value={...}&gt;</code>. Both work; the
+        shorter form is the modern idiom.
+      </div>
+
+      <div class="callout callout-warning">
+        <strong>Why <code>useMemo</code> on the value?</strong> A fresh object
+        literal every render makes every consumer re-render every time the
+        provider does. Memoizing on <code>[user]</code> means consumers only
+        update when the data actually changes. This matters more as your context
+        grows.
+      </div>
+
+      <h2>The one rule behind both examples</h2>
+      <p>
+        <code>createContext&lt;T&gt;(defaultValue)</code> has one constraint:
+        <strong
+          >the default value must fit inside the type <code>T</code></strong
+        >. Everything else follows from that:
+      </p>
+
+      <table>
+        <tr>
+          <th></th>
+          <th>Theme example</th>
+          <th>Auth example</th>
+        </tr>
+        <tr>
+          <td>Sensible default?</td>
+          <td>Yes — <code>"system"</code> is a real theme</td>
+          <td>No — there is no fake "logged-in user" we could invent</td>
+        </tr>
+        <tr>
+          <td>What we pass as default</td>
+          <td><code>"system"</code></td>
+          <td><code>null</code> ("no session yet")</td>
+        </tr>
+        <tr>
+          <td>Type required</td>
+          <td>
+            <code>Theme</code> — already includes <code>"system"</code>, nothing
+            changes
+          </td>
+          <td>
+            <code>AuthContextValue | null</code> — must widen, because
+            <code>null</code> isn't an <code>AuthContextValue</code>
+          </td>
+        </tr>
+        <tr>
+          <td>Consumer reads</td>
+          <td>a guaranteed <code>Theme</code>, anywhere</td>
+          <td>
+            <code>| null</code> leaks to consumers… unless the hook removes it
+          </td>
+        </tr>
+      </table>
+
+      <p>
+        So the union in the auth example isn't a special technique — it's just
+        honesty. Outside an <code>AuthProvider</code>, reading the context
+        really does return <code>null</code>, and the type says so. The theme
+        context never has that problem because its default is a genuine value.
+      </p>
+
+      <div class="callout callout-tip">
+        <strong>The trade-off:</strong> you could give auth a fake default
+        object too (<code
+          >{ user: null, login: () =&gt; {}, logout: () =&gt; {} }</code
+        >) — then no <code>| null</code> needed. But a component using
+        <code>useAuth()</code> outside the provider would silently get that
+        dummy instead of crashing loudly. Real codebases prefer the loud crash.
+      </div>
+
+      <h2>Custom hooks elsewhere: return types</h2>
+      <p>
+        Most of the time, let inference do the work. Add an explicit return type
+        when you want the contract documented and drift-proof:
+      </p>
+
+      <pre><code>// Inference is fine — hover to see the type:
+function useToggle(initial = false) {
+  const [on, setOn] = useState(initial);
+  return { on, toggle: () =&gt; setOn((o) =&gt; !o) };
+}
+
+// Explicit when it's a shared/public hook:
+function useDebouncedValue&lt;T&gt;(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() =&gt; {
+    const id = setTimeout(() =&gt; setDebounced(value), delayMs);
+    return () =&gt; clearTimeout(id);        // refs hold timer IDs — Lesson 3!
+  }, [value, delayMs]);
+
+  return debounced;
+}
+
+const query = useDebouncedValue(searchText, 300);   // T inferred as string</code></pre>
+
+      <p>
+        Note <code>useDebouncedValue&lt;T&gt;</code> — generics work in hooks
+        exactly like components. The debounce above is a real utility you'll
+        find (hand-written or via library) in most production codebases.
+      </p>
+
+      <h2>Quick Check</h2>
+
+      <div class="quiz" data-answers='["honest"]'>
+        <p>
+          Why type
+          <code>createContext&lt;AuthContextValue | null&gt;(null)</code>
+          instead of just
+          <code>createContext&lt;AuthContextValue&gt;(null)</code>?
+        </p>
+        <label data-why="Outside a provider the stored value genuinely is null — an honest type must include it."><input type="radio" name="q1" value="honest" /> The type should reflect reality: outside a provider the value is null</label>
+        <label data-why="Nothing about createContext forces a union — this is about truthfulness of types, not API rules."><input type="radio" name="q1" value="syntax" /> <code>| null</code> is required by <code>createContext</code>'s signature</label>
+        <label data-why="Types are erased at compile time — there is zero runtime or performance effect."><input type="radio" name="q1" value="perf" /> It improves performance</label>
+      </div>
+
+      <div class="quiz" data-answers='["narrows"]'>
+        <p>
+          What does the <code>if (!ctx) throw ...</code> check do for consumers?
+        </p>
+        <label data-why="Control-flow analysis removes null from ctx after the throw branch, so the return type loses the union member."><input type="radio" name="q2" value="narrows" /> Narrows the return type, removing <code>null</code></label>
+        <label data-why="It does double duty: runtime protection AND the narrowing mechanism TS reads to eliminate null."><input type="radio" name="q2" value="nothing" /> Nothing — it's just for debugging</label>
+        <label data-why="Narrowing shrinks possibilities away; widening would add them."><input type="radio" name="q2" value="widens" /> Makes the type wider</label>
+      </div>
+
+      <div class="quiz" data-answers='["hook"]'>
+        <p>In production codebases, what do components consume?</p>
+        <label data-why="Raw useContext hands you AuthContextValue | null — every consumer re-implements the guard and internals leak."><input type="radio" name="q3" value="context" /> The raw context object via <code>useContext(AuthContext)</code></label>
+        <label data-why="The guard hook is the public API: null removed once, loud error outside the provider, raw context stays private."><input type="radio" name="q3" value="hook" /> A custom hook like <code>useAuth()</code> that wraps the context</label>
+        <label data-why="Context exists precisely to avoid threading these values through props at each level."><input type="radio" name="q3" value="props" /> Props passed down from App</label>
+      </div>
+
+      <h2>Recipe: typed context</h2>
+      <ol>
+        <li>
+          Define the value interface — data + actions:
+          <code
+            >interface AuthContextValue { user: User | null; login: ...; logout:
+            ... }</code
+          >
+        </li>
+        <li>
+          Create with an honest default:
+          <code>createContext&lt;AuthContextValue | null&gt;(null)</code>
+        </li>
+        <li>
+          Write a <strong>Provider component</strong>: holds the
+          <code>useState</code>/<code>useReducer</code>, builds the value object
+          inside <code>useMemo</code>, renders
+          <code
+            >&lt;AuthContext
+            value={value}&gt;{children}&lt;/AuthContext&gt;</code
+          >
+        </li>
+        <li>
+          Write a <strong>guard hook</strong>:
+          <code
+            >const ctx = useContext(AuthContext); if (!ctx) throw new
+            Error(...); return ctx;</code
+          >
+        </li>
+        <li>
+          Export only the Provider and the hook — never the raw context object
+        </li>
+      </ol>
+
+      <div class="callout callout-tip">
+        <strong>Primary sources:</strong>
+        <a
+          href="https://react.dev/learn/typescript#typing-usecontext"
+          target="_blank"
+          >react.dev: Typing useContext</a
+        >
+        and
+        <a
+          href="https://react.dev/learn/scaling-up-with-reducer-and-context"
+          target="_blank"
+          >Scaling Up with Reducer &amp; Context</a
+        >
+        — the second shows this same pattern scaled up with
+        <code>useReducer</code>.
+      </div>
+
+      <p>Questions? Ask me anytime.</p>
+
+      <div class="lesson-nav">
+        <span
+          ><a href="0005-exercise-core-typing.html"
+            >← Exercise 1: Core Typing</a
+          ></span
+        >
+        <span>Next: <a href="0007-utility-types.html">Utility Types</a></span>
+      </div>
+    </div>
+  </body>
+</html>

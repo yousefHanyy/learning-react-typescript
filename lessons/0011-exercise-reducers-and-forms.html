@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exercise 3: Reducers &amp; Forms</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/exercise.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Exercise 3</span>
+    <h1>Reducers &amp; Forms</h1>
+    <p class="lesson-meta">Covers Lessons 7–8 &middot; ~20 min</p>
+
+    <div class="lesson-nav top">
+      <span><a href="0010-typing-forms-and-actions.html">&larr; Lesson 8: Forms &amp; Actions</a></span>
+      <span>Next: <a href="0012-polymorphic-components.html">Lesson 9: Polymorphic Components</a></span>
+    </div>
+
+    <div class="callout">
+      <strong>How to do this:</strong> try each challenge <em>before</em> revealing the solution. Type your answer in your own editor or the <a href="https://www.typescriptlang.org/play" target="_blank">TypeScript Playground</a> and make sure it compiles with no red squiggles. Retrieving from memory — not reading — is what builds long-term skill.
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 1 &middot; Lesson 7</div>
+      <h3>Type a filters reducer</h3>
+      <p class="objective">Objective: build State, Action union, and reducer from scratch.</p>
+      <div class="task">
+        A product-list page has filter state:
+<pre><code>interface FiltersState {
+  query: string;
+  maxPrice: number;
+  inStockOnly: boolean;
+}</code></pre>
+        Write:
+        <ul>
+          <li>A <code>FiltersAction</code> discriminated union supporting: setting the query, setting the max price, toggling the in-stock flag, resetting everything</li>
+          <li>A fully annotated <code>filtersReducer</code> with an exhaustiveness guard</li>
+          <li>The <code>useReducer</code> wiring (one line)</li>
+        </ul>
+        No <code>any</code>, no optional mega-params.
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>type FiltersAction =
+  | { type: "setQuery"; value: string }
+  | { type: "setMaxPrice"; value: number }
+  | { type: "toggleInStock" }
+  | { type: "reset" };
+
+const initialFilters: FiltersState = {
+  query: "",
+  maxPrice: 100,
+  inStockOnly: false,
+};
+
+function filtersReducer(state: FiltersState, action: FiltersAction): FiltersState {
+  switch (action.type) {
+    case "setQuery":
+      return { ...state, query: action.value };
+    case "setMaxPrice":
+      return { ...state, maxPrice: action.value };
+    case "toggleInStock":
+      return { ...state, inStockOnly: !state.inStockOnly };
+    case "reset":
+      return initialFilters;
+    default: {
+      const _exhaustive: never = action;
+      return state;
+    }
+  }
+}
+
+// In the component — dispatch typed automatically:
+const [filters, dispatch] = useReducer(filtersReducer, initialFilters);</code></pre>
+        <p>Note how payload fields live only where needed: <code>value</code> exists on <code>setQuery</code>/<code>setMaxPrice</code> but not on <code>toggleInStock</code>. Inside each case, TS knows exactly which fields are legal.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 2 &middot; Lesson 7</div>
+      <h3>Break it on purpose</h3>
+      <p class="objective">Objective: predict what the exhaustiveness guard does when violated.</p>
+      <div class="task">
+        This reducer compiles today:
+<pre><code>type ProductsAction =
+  | { type: "sort"; field: "price" | "name" }
+  | { type: "shuffle" };</code></pre>
+        <ol>
+          <li>You now add a third variant: <code>| { type: "clear" }</code>. Without touching the switch, <strong>describe the error</strong>: where does it appear, and what does the message say?</li>
+          <li>Fix it.</li>
+        </ol>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+        <p><strong>The error:</strong> not at the union definition, and not anywhere you forgot — it appears in the <code>default</code> branch of the switch:</p>
+<pre><code>default: {
+  const _exhaustive: never = action;
+  //    ~~~~~~~~~~~ ← Type '{ type: "clear"; }' is not assignable to type 'never'
+  return state;
+}</code></pre>
+        <p><strong>Why:</strong> with all cases handled, narrowing had eliminated every member, leaving <code>never</code> in <code>default</code> — so the assignment was legal. The unhandled <code>"clear"</code> survives narrowing into <code>default</code>, and nothing (except <code>never</code> itself) is assignable to <code>never</code>.</p>
+        <p><strong>The fix:</strong> handle it — which is the entire point. The compiler just wrote your TODO list:</p>
+<pre><code>case "clear":
+  return { items: [], sort: state.sort };</code></pre>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 3 &middot; Lesson 8</div>
+      <h3>Narrow the form data</h3>
+      <p class="objective">Objective: make raw FormData safe to use.</p>
+      <div class="task">
+        A signup form uses the React 19 <code>action</code> prop:
+<pre><code>&lt;form action={signUp}&gt;
+  &lt;input name="name" /&gt;
+  &lt;input name="email" type="email" /&gt;
+  &lt;button&gt;Create account&lt;/button&gt;
+&lt;/form&gt;</code></pre>
+        Write <code>signUp</code>: extract both fields, bail out safely if either is missing or empty (email must contain <code>@</code>), otherwise call <code>api.createUser({ name, email })</code>. No casts, no <code>as</code>.
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>async function signUp(formData: FormData): Promise&lt;void&gt; {
+  const name = formData.get("name");
+  if (typeof name !== "string" || name.trim() === "") return;
+
+  const email = formData.get("email");
+  if (typeof email !== "string" || !email.includes("@")) return;
+
+  await api.createUser({ name, email });   // both are guaranteed strings here
+}</code></pre>
+        <p>The key line pattern: <code>typeof x !== "string"</code>. After the guard, <code>FormDataEntryValue | null</code> narrows to plain <code>string</code> — same control-flow narrowing as the context guard hook, just with <code>typeof</code> instead of truthiness.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 4 &middot; Lesson 8</div>
+      <h3>Newsletter form with useActionState</h3>
+      <p class="objective">Objective: full production form — errors, pending state, no bugs.</p>
+      <div class="task">
+        Build a subscribe form:
+        <ul>
+          <li>One <code>email</code> input; invalid or missing email → show <code>"Please enter a valid email."</code></li>
+          <li>Show that error under the form; clear it on a successful retry</li>
+          <li>Disable input + button while submitting, with button text <code>"Subscribing…"</code></li>
+          <li>Use <code>useActionState</code> — mind the argument order</li>
+        </ul>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>import { useActionState } from "react";
+
+interface SubscribeState {
+  error: string | null;
+}
+
+async function subscribe(
+  prevState: SubscribeState,
+  formData: FormData
+): Promise&lt;SubscribeState&gt; {
+  const email = formData.get("email");
+  if (typeof email !== "string" || !email.includes("@")) {
+    return { error: "Please enter a valid email." };
+  }
+  await api.subscribe(email);
+  return { error: null };
+}
+
+function NewsletterForm() {
+  const [state, submitAction, isPending] =
+    useActionState(subscribe, { error: null });
+
+  return (
+    &lt;form action={submitAction}&gt;
+      &lt;input name="email" placeholder="you@example.com" disabled={isPending} /&gt;
+      {state.error &amp;&amp; &lt;p role="alert"&gt;{state.error}&lt;/p&gt;}
+      &lt;button disabled={isPending}&gt;
+        {isPending ? "Subscribing…" : "Subscribe"}
+      &lt;/button&gt;
+    &lt;/form&gt;
+  );
+}</code></pre>
+        <p>Three details worth checking yourself on:</p>
+        <ol>
+          <li><strong><code>(prevState, formData)</code></strong> — state first. The bare action-prop signature is <code>(formData)</code>; wrapping flips it.</li>
+          <li><strong>Every path returns a fresh state object</strong> — success resets <code>error: null</code>, so a retry clears the old message.</li>
+          <li><strong><code>state</code>'s type comes from the initial value</strong> — <code>{ error: null }</code> infers <code>SubscribeState</code> without a generic annotation.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Stretch &middot; Lessons 5 + 7</div>
+      <h3>App-wide filters: reducer meets Provider</h3>
+      <p class="objective">Objective: combine the two lessons into the production scaling pattern.</p>
+      <div class="task">
+        Turn Challenge 1's reducer into app-wide state:
+        <ul>
+          <li>A <code>FiltersProvider</code> holding the reducer</li>
+          <li><strong>Two</strong> contexts: one for the state, one for <code>dispatch</code></li>
+          <li>Guard hooks <code>useFilters()</code> and <code>useFiltersDispatch()</code></li>
+          <li>Export only Provider + hooks</li>
+        </ul>
+        Then answer: which of these re-renders when the query changes — a badge showing the query, or the reset button?
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>import { createContext, useContext, useReducer } from "react";
+
+const FiltersContext = createContext&lt;FiltersState | null&gt;(null);
+const FiltersDispatchContext = createContext&lt;React.Dispatch&lt;FiltersAction&gt; | null&gt;(null);
+
+export function FiltersProvider({ children }: { children: React.ReactNode }) {
+  const [filters, dispatch] = useReducer(filtersReducer, initialFilters);
+
+  return (
+    &lt;FiltersDispatchContext value={dispatch}&gt;
+      &lt;FiltersContext value={filters}&gt;{children}&lt;/FiltersContext&gt;
+    &lt;/FiltersDispatchContext&gt;
+  );
+}
+
+export function useFilters(): FiltersState {
+  const ctx = useContext(FiltersContext);
+  if (!ctx) throw new Error("useFilters must be used within &lt;FiltersProvider&gt;");
+  return ctx;
+}
+
+export function useFiltersDispatch(): React.Dispatch&lt;FiltersAction&gt; {
+  const ctx = useContext(FiltersDispatchContext);
+  if (!ctx) throw new Error("useFiltersDispatch must be used within &lt;FiltersProvider&gt;");
+  return ctx;
+}</code></pre>
+        <p><strong>The re-render answer:</strong> the badge re-renders (it reads <code>useFilters()</code>, which changed); the reset button does <em>not</em> — it only calls <code>useFiltersDispatch()</code>, and dispatch is the same stable function reference across renders. That's why the split into two contexts is worth its extra three lines.</p>
+        <p>Note there are no new typing ideas here: <code>Dispatch&lt;FiltersAction&gt;</code> flows through the same honest-null guard-hook shape as every context since Lesson 5.</p>
+      </div>
+    </div>
+
+    <p>Stuck on any challenge? Ask me — hinting is half my job.</p>
+
+    <div class="lesson-nav">
+      <span><a href="0010-typing-forms-and-actions.html">&larr; Lesson 8: Forms &amp; Actions</a></span>
+      <span>Next: <a href="0012-polymorphic-components.html">Lesson 9: Polymorphic Components</a></span>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exercise 1: Core Component Typing</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/exercise.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Exercise 1</span>
+    <h1>Core Component Typing</h1>
+    <p class="lesson-meta">Covers Lessons 1–4 &middot; ~20 min</p>
+
+    <div class="lesson-nav top">
+      <span><a href="0004-generic-components.html">&larr; Lesson 4: Generic Components</a></span>
+      <span>Next: <a href="0006-context-and-hooks.html">Lesson 5: Context &amp; Custom Hooks</a></span>
+    </div>
+
+    <div class="callout">
+      <strong>How to do this:</strong> try each challenge <em>before</em> revealing the solution. Type your answer in your own editor or the <a href="https://www.typescriptlang.org/play" target="_blank">TypeScript Playground</a> and make sure it compiles with no red squiggles. Retrieving from memory — not reading — is what builds long-term skill.
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 1 &middot; Lesson 1</div>
+      <h3>Type a Badge component</h3>
+      <p class="objective">Objective: write an <code>interface</code> and annotate a component.</p>
+      <div class="task">
+        Define <code>BadgeProps</code> for a badge that has:
+        <ul>
+          <li><code>label</code>: string (required)</li>
+          <li><code>color</code>: one of <code>'green' | 'red' | 'blue'</code> (required)</li>
+          <li><code>onClick</code>: optional — a function taking no args, returning nothing</li>
+          <li><code>children</code>: anything renderable (required)</li>
+        </ul>
+        Then write the component signature: <code>function Badge(props: BadgeProps) { ... }</code> using destructuring.
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>interface BadgeProps {
+  label: string;
+  color: 'green' | 'red' | 'blue';
+  onClick?: () =&gt; void;
+  children: React.ReactNode;
+}
+
+function Badge({ label, color, onClick, children }: BadgeProps) {
+  return (
+    &lt;button className={`badge badge-${color}`} onClick={onClick}&gt;
+      {label}
+      {children}
+    &lt;/button&gt;
+  );
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 2 &middot; Lesson 2</div>
+      <h3>Fix the state bug</h3>
+      <p class="objective">Objective: spot and fix a <code>useState</code> typing error.</p>
+      <div class="task">
+        <p>This code fails to compile. Find the error and fix it, then type the submit handler correctly:</p>
+<pre><code>interface Comment { id: number; text: string; }
+
+function Comments() {
+  const [comments, setComments] = useState([]);           // ❌
+  const handleSubmit = (e) =&gt; {                           // ❌
+    e.preventDefault();
+    setComments([...comments, { id: 1, text: 'hi' }]);
+  };
+  return (
+    &lt;form onSubmit={handleSubmit}&gt;
+      &lt;input type="text" /&gt;
+      &lt;button type="submit"&gt;Add&lt;/button&gt;
+    &lt;/form&gt;
+  );
+}</code></pre>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>function Comments() {
+  const [comments, setComments] = useState&lt;Comment[]&gt;([]);   // ✅ typed array
+
+  const handleSubmit: React.SubmitEventHandler&lt;HTMLFormElement&gt; = (e) =&gt; {
+    e.preventDefault();
+    setComments([...comments, { id: 1, text: 'hi' }]);
+  };
+  // ...
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 3 &middot; Lesson 3</div>
+      <h3>Autofocus a video ref</h3>
+      <p class="objective">Objective: type a DOM ref correctly.</p>
+      <div class="task">
+        Write a component that mounts a <code>&lt;video&gt;</code> element and calls <code>play()</code> on it when mounted. Use <code>useRef</code>, <code>useEffect</code>, and a type guard so TypeScript is happy. Then expose the ref to parents as a <code>ref</code> prop (React 19 style).
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>function VideoPlayer() {
+  const videoRef = useRef&lt;HTMLVideoElement&gt;(null);
+
+  useEffect(() =&gt; {
+    videoRef.current?.play();   // ✅ optional chain handles the null
+  }, []);
+
+  return &lt;video ref={videoRef} /&gt;;
+}
+
+// Exposing to a parent (React 19 — ref is a prop):
+interface VideoProps {
+  src: string;
+  ref?: React.Ref&lt;HTMLVideoElement&gt;;
+}
+
+function Video({ src, ref }: VideoProps) {
+  return &lt;video src={src} ref={ref} /&gt;;
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 4 &middot; Lesson 4</div>
+      <h3>Make a generic KeyValueTable</h3>
+      <p class="objective">Objective: write your own generic component.</p>
+      <div class="task">
+        Build a generic <code>KeyValueTable&lt;T&gt;</code> that renders a table from items. Props:
+        <ul>
+          <li><code>items: T[]</code></li>
+          <li><code>columns: { key: keyof T; header: string }[]</code></li>
+        </ul>
+        Render one row per item, one cell per column, showing <code>item[column.key]</code>. Then constrain <code>T</code> so <code>keyof T</code> is safe. It should work for any object type without <code>any</code>.
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>interface Column&lt;T&gt; { key: keyof T; header: string; }
+
+interface KeyValueTableProps&lt;T&gt; {
+  items: T[];
+  columns: Column&lt;T&gt;[];
+}
+
+function KeyValueTable&lt;T&gt;({ items, columns }: KeyValueTableProps&lt;T&gt;) {
+  return (
+    &lt;table&gt;
+      &lt;thead&gt;
+        &lt;tr&gt;{columns.map((c) =&gt; &lt;th key={c.header}&gt;{c.header}&lt;/th&gt;)}&lt;/tr&gt;
+      &lt;/thead&gt;
+      &lt;tbody&gt;
+        {items.map((item, i) =&gt; (
+          &lt;tr key={i}&gt;
+            {columns.map((c) =&gt; (
+              &lt;td key={c.header}&gt;{String(item[c.key])}&lt;/td&gt;
+            ))}
+          &lt;/tr&gt;
+        ))}
+      &lt;/tbody&gt;
+    &lt;/table&gt;
+  );
+}
+
+// Usage — T is inferred as User:
+const users: User[] = [/* ... */];
+&lt;KeyValueTable items={users} columns={[{ key: 'name', header: 'Name' }]} /&gt;;</code></pre>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Stretch &middot; Lesson 4</div>
+      <h3>Add a render prop to KeyValueTable</h3>
+      <p class="objective">Objective: make cells customizable with an optional renderer.</p>
+      <div class="task">
+        Modify Challenge 4 so a column can optionally render a custom React node when the value isn't a plain string — e.g. dates, badges, links:
+        <ul>
+          <li>Add <code>render?: (value: T[keyof T]) =&gt; React.ReactNode</code> to <code>Column&lt;T&gt;</code></li>
+          <li>When <code>render</code> is present, use it; otherwise fall back to <code>String(value)</code></li>
+        </ul>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>interface Column&lt;T&gt; {
+  key: keyof T;
+  header: string;
+  render?: (value: T[keyof T]) =&gt; React.ReactNode;
+}
+
+interface KeyValueTableProps&lt;T&gt; {
+  items: T[];
+  columns: Column&lt;T&gt;[];
+}
+
+function KeyValueTable&lt;T&gt;({ items, columns }: KeyValueTableProps&lt;T&gt;) {
+  return (
+    &lt;table&gt;
+      &lt;thead&gt;
+        &lt;tr&gt;{columns.map((c) =&gt; &lt;th key={c.header}&gt;{c.header}&lt;/th&gt;)}&lt;/tr&gt;
+      &lt;/thead&gt;
+      &lt;tbody&gt;
+        {items.map((item, i) =&gt; (
+          &lt;tr key={i}&gt;
+            {columns.map((c) =&gt; {
+              const value = item[c.key];
+              return (
+                &lt;td key={c.header}&gt;
+                  {c.render ? c.render(value) : String(value)}
+                &lt;/td&gt;
+              );
+            })}
+          &lt;/tr&gt;
+        ))}
+      &lt;/tbody&gt;
+    &lt;/table&gt;
+  );
+}
+
+// Usage:
+&lt;KeyValueTable
+  items={users}
+  columns={[
+    { key: 'name', header: 'Name' },
+    { key: 'createdAt', header: 'Joined', render: (d) =&gt; new Date(d).toLocaleDateString() },
+  ]}
+/&gt;</code></pre>
+        <p>Two things worth noticing:</p>
+        <ol>
+          <li><strong><code>T[keyof T]</code></strong> is index access on the type level — "whatever type the pointed-at property has". It can't be written precisely without the generic, which is why this pattern only works on generic components.</li>
+          <li><strong>The optional-call guard:</strong> <code>c.render ? ... : ...</code> isn't just runtime safety — it's what lets TS accept calling <code>c.render(value)</code>, since within that branch <code>render</code> is definitely defined. This is exactly the narrowing you saw with discriminated unions in Lesson 2.</li>
+        </ol>
+        <p>This is the same pattern React's own docs use for list components (<code>renderItem</code>) — see the glossary's Patterns section.</p>
+      </div>
+    </div>
+
+    <p>Stuck on any challenge? Ask me — hinting is half my job.</p>
+
+    <div class="lesson-nav">
+      <span><a href="0004-generic-components.html">← Lesson 4: Generic Components</a></span>
+      <span>Next: <a href="0006-context-and-hooks.html">Lesson 5: Context &amp; Custom Hooks</a></span>
+    </div>
+  </div>
+</body>
+</html>

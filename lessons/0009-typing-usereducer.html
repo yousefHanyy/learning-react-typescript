@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 7: Typing useReducer</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Lesson 7</span>
+    <h1>Typing <code>useReducer</code></h1>
+    <p class="lesson-meta">~7 min &middot; Builds on: <a href="0002-typing-events-and-state.html">Lesson 2</a> (discriminated unions) &middot; <a href="0006-context-and-hooks.html">Lesson 5</a> (context) &middot; <a href="../reference/glossary.html">Glossary</a></p>
+
+    <div class="lesson-nav top">
+      <span><a href="0008-exercise-context-and-utils.html">&larr; Exercise 2: Context &amp; Utility Types</a></span>
+      <span>Next: <a href="0010-typing-forms-and-actions.html">Forms &amp; Actions</a></span>
+    </div>
+
+    <p>When state transitions get complex — multiple fields updating each other, undo/redo, wizard flows — codebases reach for <code>useReducer</code>. Typing it is mostly Lesson 2's discriminated union applied twice: once to the state, once to the actions.</p>
+
+    <h2>The three pieces</h2>
+
+<pre><code>import { useReducer } from "react";
+
+interface State {
+  count: number;
+}
+
+// The action union — every legal transition, named:
+type Action =
+  | { type: "reset" }
+  | { type: "setCount"; value: number };
+
+const initialState: State = { count: 0 };
+
+// Fully annotated — this is where the types live:
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case "reset":
+      return initialState;
+    case "setCount":
+      return { ...state, count: action.value };
+  }
+}
+
+export default function Counter() {
+  const [state, dispatch] = useReducer(reducer, initialState);
+
+  // dispatch is typed automatically — no annotation:
+  const addFive = () =&gt; dispatch({ type: "setCount", value: state.count + 5 });
+  const reset = () =&gt; dispatch({ type: "reset" });
+
+  return (
+    &lt;&gt;
+      &lt;p&gt;Count: {state.count}&lt;/p&gt;
+      &lt;button onClick={addFive}&gt;+5&lt;/button&gt;
+      &lt;button onClick={reset}&gt;Reset&lt;/button&gt;
+    &lt;/&gt;
+  );
+}</code></pre>
+
+    <p>Notice what you <strong>don't</strong> write: <code>useReducer&lt;State, Action&gt;</code>. You annotate the reducer itself, and inference flows from there:</p>
+    <ul>
+      <li><code>dispatch</code> gets the type <code>React.Dispatch&lt;Action&gt;</code></li>
+      <li>A typo like <code>dispatch({ type: "rest" })</code> is a compile error</li>
+      <li><code>action.value</code> inside <code>case "setCount"</code> is a guaranteed <code>number</code> — the discriminator narrows the union, exactly like <code>RequestState</code> in Lesson 2</li>
+    </ul>
+
+    <h2>The exhaustiveness win</h2>
+    <p>Add one line to the reducer's switch and TS becomes your maintenance alarm:</p>
+
+<pre><code>function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case "reset":
+      return initialState;
+    case "setCount":
+      return { ...state, count: action.value };
+    default: {
+      const _exhaustive: never = action;   // ✅ compiles today
+      return state;
+    }
+  }
+}</code></pre>
+
+    <p>Here's the trick: if every case is handled, <code>action</code> in the <code>default</code> branch has been narrowed down to <code>never</code> — so assigning it is legal. But add a new variant to the union tomorrow…</p>
+
+<pre><code>type Action =
+  | { type: "reset" }
+  | { type: "setCount"; value: number }
+  | { type: "increment" };        // new!
+
+// ❌ default branch now errors:
+// Type '{ type: "increment" }' is not assignable to type 'never'</code></pre>
+
+    <p>TS refuses to compile until you handle the new action. Impossible states and forgotten transitions get caught before the code ever runs — this is why production teams prefer reducers for complex state.</p>
+
+    <h2>A realistic example: shopping cart</h2>
+
+<pre><code>interface CartItem {
+  id: string;
+  name: string;
+  qty: number;
+}
+
+type CartAction =
+  | { type: "add"; item: CartItem }
+  | { type: "remove"; id: string }
+  | { type: "setQty"; id: string; qty: number }
+  | { type: "clear" };
+
+function cartReducer(items: CartItem[], action: CartAction): CartItem[] {
+  switch (action.type) {
+    case "add":
+      return [...items, action.item];
+    case "remove":
+      return items.filter((i) =&gt; i.id !== action.id);
+    case "setQty":
+      return items.map((i) =&gt;
+        i.id === action.id ? { ...i, qty: action.qty } : i
+      );
+    case "clear":
+      return [];
+    default: {
+      const _exhaustive: never = action;
+      return items;
+    }
+  }
+}</code></pre>
+
+    <p>Note that the state here is just <code>CartItem[]</code> — state doesn't have to be an object. And each payload field (<code>action.item</code>, <code>action.id</code>) exists only on the action that needs it; there are no optional-everything mega-params.</p>
+
+    <h2>Pairing with a Provider (Lesson 5 pattern)</h2>
+    <p>Two lessons, two jobs: <strong>Lesson 5</strong> answered <em>where shared state lives and how components consume it</em> — a Provider plus guard hooks. <strong>This lesson</strong> answered <em>how complex transitions get computed</em> — a reducer. They compose directly: <strong>keep the Provider's exact Lesson 5 shape, and swap the <code>useState</code> inside it for <code>useReducer</code></strong>. The reducer becomes the engine; nothing else changes.</p>
+
+<pre><code>// Same skeleton as ToastsProvider/AuthProvider — different engine:
+export function CartProvider({ children }: { children: React.ReactNode }) {
+  const [items, dispatch] = useReducer(cartReducer, []);   // ← was useState
+
+  return (
+    &lt;CartDispatchContext value={dispatch}&gt;
+      &lt;CartContext value={items}&gt;{children}&lt;/CartContext&gt;
+    &lt;/CartDispatchContext&gt;
+  );
+}</code></pre>
+
+    <h3>Why two contexts?</h3>
+
+<pre><code>const CartContext = createContext&lt;CartItem[] | null&gt;(null);
+const CartDispatchContext = createContext&lt;React.Dispatch&lt;CartAction&gt; | null&gt;(null);
+
+export function useCart(): CartItem[] { /* guard hook */ }
+export function useCartDispatch(): React.Dispatch&lt;CartAction&gt; { /* guard hook */ }</code></pre>
+
+    <p>Splitting them gives a free performance win, because <code>dispatch</code> is the <em>same stable function</em> on every render:</p>
+
+<pre><code>function CartBadge() {
+  const items = useCart();                  // re-renders when items change ✅
+  return &lt;span&gt;{items.length}&lt;/span&gt;;
+}
+
+function AddToCart({ item }: { item: CartItem }) {
+  const dispatch = useCartDispatch();       // never re-renders — dispatch never changes ✅
+  return &lt;button onClick={() =&gt; dispatch({ type: "add", item })}&gt;Add&lt;/button&gt;;
+}</code></pre>
+
+    <p>If you stuffed both into one context value object, adding an item would re-render every consumer — including buttons that can't even see the count.</p>
+
+    <div class="callout callout-tip">
+      <strong>No new typing concept here.</strong> <code>useCartDispatch()</code>'s return type is just <code>React.Dispatch&lt;CartAction&gt;</code> flowing through the same honest-null + guard-hook pattern as <code>AuthContextValue</code> did in Lesson 5.
+    </div>
+
+    <h2>Quick Check</h2>
+
+    <div class="quiz" data-answers='["reducer"]'>
+      <p>Where do <code>State</code> and <code>Action</code> types come from at the <code>useReducer</code> call?</p>
+      <label data-why="Annotate the reducer once — useReducer's overloads inherit State and Action straight from its signature."><input type="radio" name="q1" value="reducer"> Inferred from the annotated reducer function</label>
+      <label data-why="Writing useReducer with explicit generics works but is redundant — inference already covers it."><input type="radio" name="q1" value="explicit"> Must be written as <code>useReducer&lt;State, Action&gt;</code></label>
+      <label data-why="No fallback to any — without annotations TS simply can't infer, which is why the reducer gets annotated."><input type="radio" name="q1" value="any"> They default to any</label>
+    </div>
+
+    <div class="quiz" data-answers='["never"]'>
+      <p>You add a new variant to the action union but forget a <code>case</code>. What happens?</p>
+      <label data-why="Unhandled variants survive narrowing into default, where action is no longer never — so assigning it errors at compile time."><input type="radio" name="q2" value="never"> The <code>never</code> assignment in <code>default</code> errors at compile time</label>
+      <label data-why="Catching it before running is precisely what the exhaustiveness guard exists for."><input type="radio" name="q2" value="runtime"> Nothing until it crashes at runtime</label>
+      <label data-why="It's the type checker itself raising a hard error — no lint tool involved."><input type="radio" name="q2" value="warning"> A lint warning only</label>
+    </div>
+
+    <div class="quiz" data-answers='["Dispatch"]'>
+      <p>Type of <code>dispatch</code> after <code>useReducer(cartReducer, [])</code>?</p>
+      <label data-why="useReducer maps the reducer's Action parameter directly onto dispatch's parameter."><input type="radio" name="q3" value="Dispatch"> <code>React.Dispatch&lt;CartAction&gt;</code></label>
+      <label data-why="Fully typed — that's the payoff of annotating the reducer."><input type="radio" name="q3" value="any"> <code>(action: any) =&gt; void</code></label>
+      <label data-why="dispatch takes an Action as its argument; it isn't an Action itself."><input type="radio" name="q3" value="union"> <code>CartAction</code></label>
+    </div>
+
+    <h2>Recipe: typed useReducer</h2>
+    <ol>
+      <li>Define <code>interface State</code> (or an alias like <code>CartItem[]</code>)</li>
+      <li>Define <code>type Action = { type: "..."; ...payload }</code> — discriminated union, one member per transition</li>
+      <li>Write the reducer <em>outside the component</em>, fully annotated: <code>(state: State, action: Action): State</code></li>
+      <li>Switch on <code>action.type</code>; end with the exhaustiveness guard: <code>default: { const _exhaustive: never = action; return state; }</code></li>
+      <li>Call <code>useReducer(reducer, initialState)</code> — no explicit generics needed</li>
+      <li>Growing? Move into a Provider + <code>useX()</code>/<code>useXDispatch()</code> hooks (Lesson 5 pattern)</li>
+    </ol>
+
+    <div class="callout callout-tip">
+      <strong>Primary sources:</strong> <a href="https://react.dev/learn/typescript#typing-usereducer" target="_blank">react.dev: Typing useReducer</a> and <a href="https://react.dev/learn/scaling-up-with-reducer-and-context" target="_blank">Scaling Up with Reducer &amp; Context</a>.
+    </div>
+
+    <p>Questions? Ask me anytime.</p>
+
+    <div class="lesson-nav">
+      <span><a href="0008-exercise-context-and-utils.html">&larr; Exercise 2: Context &amp; Utility Types</a></span>
+      <span>Next: <a href="0010-typing-forms-and-actions.html">Forms &amp; Actions</a></span>
+    </div>
+  </div>
+</body>
+</html>
