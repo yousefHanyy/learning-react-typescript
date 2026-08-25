@@ -28,3 +28,4 @@
 - Session 11 (2026-07-22): Added top lesson-nav to all pages (standing rule); stretch solutions now full revealable blocks (standing rule); Lesson 7 on typing useReducer (discriminated-union actions, exhaustiveness guard); expanded context tie-in section after user question
 - Session 12 (2026-07-22): Lesson 8 on forms & actions (action prop, FormData narrowing, useActionState); quiz explanations added everywhere (data-why + quiz.js upgrade)
 - Session 13 (2026-07-22): Exercise 3 covering Lessons 7-8 (filters reducer, break-the-guard drill, FormData narrowing, newsletter useActionState, stretch: reducer-in-provider)
+- Session 14 (2026-07-22): Lesson 9 on polymorphic components (as prop, ElementType constraint, ComponentPropsWithRef + Omit composition, React 19 free ref forwarding); user moved on without reporting Exercise 3 results — follow up
