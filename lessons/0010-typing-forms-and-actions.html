@@ -20,7 +20,7 @@
 
     <p>React 19 changed how forms get written. You'll see both styles in production — the classic <code>onSubmit</code> you already know, and the newer <code>action</code> prop. This lesson covers typing both, plus <code>useActionState</code>, the hook that pairs with them.</p>
 
-    <h2>Recap: the classic way (still everywhere)</h2>
+    <h2 id="classic-onsubmit">Recap: the classic way (still everywhere)</h2>
 
 <pre><code>import type { SubmitEventHandler } from "react";   // FormEvent is deprecated
 
@@ -42,7 +42,7 @@ function CommentForm() {
 
     <p>Controlled inputs mean you have the value at all times — ideal when validation runs <em>as the user types</em>. But it's a lot of plumbing per field.</p>
 
-    <h2>The React 19 way: the <code>action</code> prop</h2>
+    <h2 id="action-prop">The React 19 way: the <code>action</code> prop</h2>
     <p>Pass an async function straight to the form. No <code>preventDefault</code>, no controlled state — inputs become uncontrolled, identified by their <code>name</code>:</p>
 
 <pre><code>async function addComment(formData: FormData) {
@@ -70,7 +70,7 @@ function CommentForm() {
       <strong>No <code>name</code>, no data.</strong> <code>formData.get("email")</code> reads the input's <code>name</code> attribute, not its id or label. Missing <code>name</code> = silent <code>null</code>.
     </div>
 
-    <h2><code>useActionState</code> — actions that report back</h2>
+    <h2 id="use-action-state"><code>useActionState</code> — actions that report back</h2>
     <p>Most real forms need to show errors or results. <code>useActionState</code> wraps your action with a state slot:</p>
 
 <pre><code>import { useActionState } from "react";
@@ -116,7 +116,7 @@ function CommentForm() {
       <strong>Ties together everything so far:</strong> the error field is nullable state (Lesson 5 honesty), <code>isPending</code> drives UI (Lesson 3's rule — visible values need <code>useState</code>-style state), and for multi-field forms you'd graduate the error shape into a discriminated union (Lesson 2).
     </div>
 
-    <h2>Which style when?</h2>
+    <h2 id="style-comparison">Which style when?</h2>
     <table>
       <tr><th></th><th><code>onSubmit</code> (classic)</th><th><code>action</code> (React 19)</th></tr>
       <tr><td>Input control</td><td>Controlled — value in state</td><td>Uncontrolled — read from FormData</td></tr>
@@ -125,7 +125,7 @@ function CommentForm() {
       <tr><td>Form reset</td><td>Manual (<code>setText("")</code>)</td><td>Automatic on success</td></tr>
     </table>
 
-    <h2>Quick Check</h2>
+    <h2 id="quiz">Quick Check</h2>
 
     <div class="quiz" data-answers='["union"]'>
       <p>What does <code>formData.get("title")</code> return?</p>
@@ -148,7 +148,7 @@ function CommentForm() {
       <label data-why="Submissions don't block the UI by themselves — buttons stay clickable unless disabled."><input type="radio" name="q3" value="none"> Nothing — forms block automatically</label>
     </div>
 
-    <h2>Recipe: typed forms &amp; actions</h2>
+    <h2 id="recipe">Recipe: typed forms &amp; actions</h2>
     <ol>
       <li>Simple submission → give inputs <code>name</code>s, write <code>async function x(formData: FormData)</code>, pass to <code>&lt;form action={x}&gt;</code></li>
       <li>Every <code>get()</code> → narrow immediately: <code>const v = fd.get("x"); if (typeof v !== "string") return;</code></li>

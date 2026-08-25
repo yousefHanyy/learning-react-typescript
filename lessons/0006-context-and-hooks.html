@@ -34,7 +34,7 @@
         become the public API.
       </p>
 
-      <h2>Basic typing: let the default value infer</h2>
+      <h2 id="context-basic">Basic typing: let the default value infer</h2>
       <p>
         <code>useContext</code> gets its type entirely from
         <code>createContext&lt;T&gt;</code> — you never annotate it at the call
@@ -53,7 +53,7 @@ const theme = useContext(ThemeContext);   // theme: Theme</code></pre>
         <code>null</code> enter the picture?
       </p>
 
-      <h2>The production pattern: <code>| null</code> + a guard hook</h2>
+      <h2 id="guard-hook-pattern">The production pattern: <code>| null</code> + a guard hook</h2>
 
       <pre><code>import { createContext, useContext, useState, useMemo } from "react";
 
@@ -131,7 +131,7 @@ export function useAuth(): AuthContextValue {
         grows.
       </div>
 
-      <h2>The one rule behind both examples</h2>
+      <h2 id="honesty-rule">The one rule behind both examples</h2>
       <p>
         <code>createContext&lt;T&gt;(defaultValue)</code> has one constraint:
         <strong
@@ -191,7 +191,7 @@ export function useAuth(): AuthContextValue {
         dummy instead of crashing loudly. Real codebases prefer the loud crash.
       </div>
 
-      <h2>Custom hooks elsewhere: return types</h2>
+      <h2 id="hook-return-types">Custom hooks elsewhere: return types</h2>
       <p>
         Most of the time, let inference do the work. Add an explicit return type
         when you want the contract documented and drift-proof:
@@ -223,7 +223,7 @@ const query = useDebouncedValue(searchText, 300);   // T inferred as string</cod
         find (hand-written or via library) in most production codebases.
       </p>
 
-      <h2>Quick Check</h2>
+      <h2 id="quiz">Quick Check</h2>
 
       <div class="quiz" data-answers='["honest"]'>
         <p>
@@ -253,7 +253,7 @@ const query = useDebouncedValue(searchText, 300);   // T inferred as string</cod
         <label data-why="Context exists precisely to avoid threading these values through props at each level."><input type="radio" name="q3" value="props" /> Props passed down from App</label>
       </div>
 
-      <h2>Recipe: typed context</h2>
+      <h2 id="recipe">Recipe: typed context</h2>
       <ol>
         <li>
           Define the value interface — data + actions:

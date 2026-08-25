@@ -20,7 +20,7 @@
 
     <p>You already understand generics from <code>useState&lt;T&gt;</code>. Now the same idea moves to <em>components</em>: a component whose props type depends on a type you supply <strong>at the call site</strong>.</p>
 
-    <h2>The core pattern: <code>List&lt;T&gt;</code></h2>
+    <h2 id="list-generic">The core pattern: <code>List&lt;T&gt;</code></h2>
 
 <pre><code>interface ListProps&lt;T&gt; {
   items: T[];
@@ -43,7 +43,7 @@ function List&lt;T&gt;({ items, renderItem }: ListProps&lt;T&gt;) {
       <strong>This is the single most common generic component in production</strong> — lists, dropdowns, tables, virtualized grids. Once you see it, you'll notice it everywhere.
     </div>
 
-    <h2>Constraining <code>T</code> with <code>extends</code></h2>
+    <h2 id="constraint">Constraining <code>T</code> with <code>extends</code></h2>
     <p>If you need <code>T</code> to guarantee certain properties, constrain it. This lets you read <code>item.id</code> without erroring:</p>
 
 <pre><code>interface Identifiable { id: string | number; }
@@ -59,7 +59,7 @@ function List&lt;T extends Identifiable&gt;({ items }: { items: T[] }) {
 &lt;List items={users} /&gt;            // ✅ users have an id
 &lt;List items={[1, 2, 3]} /&gt;        // ❌ numbers have no id</code></pre>
 
-    <h2>A production example: Select</h2>
+    <h2 id="select-example">A production example: Select</h2>
     <p>Generic components really shine for "give me an item, get back its value" components:</p>
 
 <pre><code>interface SelectProps&lt;T&gt; {
@@ -93,7 +93,7 @@ function Select&lt;T&gt;({ options, getValue, onSelect }: SelectProps&lt;T&gt;) 
       Using a <code>function</code> declaration (as above) sidesteps this entirely.
     </div>
 
-    <h2>Quick Check</h2>
+    <h2 id="quiz">Quick Check</h2>
 
     <div class="quiz" data-answers='["inferred"]'>
       <p>When you pass <code>items={users}</code> to <code>List&lt;T&gt;</code>, how does TS determine <code>T</code>?</p>
@@ -109,7 +109,7 @@ function Select&lt;T&gt;({ options, getValue, onSelect }: SelectProps&lt;T&gt;) 
       <label data-why="typeof queries the type of an existing value — it has nothing to do with constraining generics."><input type="radio" name="q2" value="typeof"> <code>T typeof Identifiable</code></label>
     </div>
 
-    <h2>Recipe: generic component</h2>
+    <h2 id="recipe">Recipe: generic component</h2>
     <ol>
       <li>Put <code>T</code> in the props interface where values flow through: <code>interface ListProps&lt;T&gt; { items: T[] }</code></li>
       <li>Declare it on a <code>function</code> statement: <code>function List&lt;T&gt;({...}: ListProps&lt;T&gt;) { ... }</code> (avoids the .tsx arrow gotcha)</li>

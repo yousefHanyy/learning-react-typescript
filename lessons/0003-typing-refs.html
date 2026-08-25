@@ -20,7 +20,7 @@
 
     <p>Refs come in two flavors at work, and TS types them differently. This lesson covers both, plus the current way to expose a ref from a custom component.</p>
 
-    <h2>1. DOM refs: <code>useRef&lt;T&gt;(null)</code></h2>
+    <h2 id="dom-refs">1. DOM refs: <code>useRef&lt;T&gt;(null)</code></h2>
 
 <pre><code>function SearchBox() {
   const inputRef = useRef&lt;HTMLInputElement&gt;(null);
@@ -38,7 +38,7 @@
       <strong>Never do this:</strong> <code>useRef&lt;HTMLInputElement&gt;()</code> with no argument. It returns <code>undefined</code> initially, but the type lies and says <code>HTMLInputElement</code> — you get a non-null reference to nothing. Always pass <code>null</code> for DOM refs.
     </div>
 
-    <h2>2. Value refs: <code>useRef&lt;number&gt;(0)</code></h2>
+    <h2 id="value-refs">2. Value refs: <code>useRef&lt;number&gt;(0)</code></h2>
 
 <pre><code>function Timer() {
   const intervalRef = useRef&lt;number | null&gt;(null);
@@ -63,7 +63,7 @@
 
     <p>The generic <code>&lt;number&gt;</code> is the same mechanism you asked about with <code>useState&lt;RequestState&gt;</code>.</p>
 
-    <h2>3. Passing refs to components (React 19)</h2>
+    <h2 id="ref-as-prop">3. Passing refs to components (React 19)</h2>
     <p>Since React 19, <code>ref</code> is just a normal prop. Type it with <code>React.Ref&lt;T&gt;</code> — which accepts both object refs and callback refs:</p>
 
 <pre><code>interface InputProps {
@@ -84,7 +84,7 @@ function LabeledInput({ label, ref }: InputProps) {
       <strong>React 18 codebases (still common):</strong> you'll see <code>forwardRef</code> instead — <code>forwardRef&lt;HTMLInputElement, InputProps&gt;((props, ref) =&gt; ...)</code>. The type arguments are always <code>&lt;RefType, PropsType&gt;</code>. Just recognize it; new code uses the prop form above.
     </div>
 
-    <h2>Quick Check</h2>
+    <h2 id="quiz">Quick Check</h2>
 
     <div class="quiz" data-answers='["HTMLInputElement | null"]'>
       <p>Type of <code>inputRef.current</code> after <code>useRef&lt;HTMLInputElement&gt;(null)</code>?</p>
@@ -100,7 +100,7 @@ function LabeledInput({ label, ref }: InputProps) {
       <label data-why="You'd lose every check on .current in consumers of your component."><input type="radio" name="q2" value="any"> <code>any</code></label>
     </div>
 
-    <h2>Recipe: refs</h2>
+    <h2 id="recipe">Recipe: refs</h2>
     <ol>
       <li>DOM element → <code>useRef&lt;HTMLInputElement&gt;(null)</code>, attach with <code>ref={...}</code>, always guard: <code>.current?.focus()</code></li>
       <li>Silent persisted value → <code>useRef&lt;number | null&gt;(null)</code>, mutate <code>.current</code> freely — no re-render</li>

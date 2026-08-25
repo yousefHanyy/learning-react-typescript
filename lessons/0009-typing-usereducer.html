@@ -20,7 +20,7 @@
 
     <p>When state transitions get complex — multiple fields updating each other, undo/redo, wizard flows — codebases reach for <code>useReducer</code>. Typing it is mostly Lesson 2's discriminated union applied twice: once to the state, once to the actions.</p>
 
-    <h2>The three pieces</h2>
+    <h2 id="reducer-three-pieces">The three pieces</h2>
 
 <pre><code>import { useReducer } from "react";
 
@@ -68,7 +68,7 @@ export default function Counter() {
       <li><code>action.value</code> inside <code>case "setCount"</code> is a guaranteed <code>number</code> — the discriminator narrows the union, exactly like <code>RequestState</code> in Lesson 2</li>
     </ul>
 
-    <h2>The exhaustiveness win</h2>
+    <h2 id="exhaustiveness-guard">The exhaustiveness win</h2>
     <p>Add one line to the reducer's switch and TS becomes your maintenance alarm:</p>
 
 <pre><code>function reducer(state: State, action: Action): State {
@@ -96,7 +96,7 @@ export default function Counter() {
 
     <p>TS refuses to compile until you handle the new action. Impossible states and forgotten transitions get caught before the code ever runs — this is why production teams prefer reducers for complex state.</p>
 
-    <h2>A realistic example: shopping cart</h2>
+    <h2 id="cart-example">A realistic example: shopping cart</h2>
 
 <pre><code>interface CartItem {
   id: string;
@@ -131,7 +131,7 @@ function cartReducer(items: CartItem[], action: CartAction): CartItem[] {
 
     <p>Note that the state here is just <code>CartItem[]</code> — state doesn't have to be an object. And each payload field (<code>action.item</code>, <code>action.id</code>) exists only on the action that needs it; there are no optional-everything mega-params.</p>
 
-    <h2>Pairing with a Provider (Lesson 5 pattern)</h2>
+    <h2 id="reducer-provider">Pairing with a Provider (Lesson 5 pattern)</h2>
     <p>Two lessons, two jobs: <strong>Lesson 5</strong> answered <em>where shared state lives and how components consume it</em> — a Provider plus guard hooks. <strong>This lesson</strong> answered <em>how complex transitions get computed</em> — a reducer. They compose directly: <strong>keep the Provider's exact Lesson 5 shape, and swap the <code>useState</code> inside it for <code>useReducer</code></strong>. The reducer becomes the engine; nothing else changes.</p>
 
 <pre><code>// Same skeleton as ToastsProvider/AuthProvider — different engine:
@@ -171,7 +171,7 @@ function AddToCart({ item }: { item: CartItem }) {
       <strong>No new typing concept here.</strong> <code>useCartDispatch()</code>'s return type is just <code>React.Dispatch&lt;CartAction&gt;</code> flowing through the same honest-null + guard-hook pattern as <code>AuthContextValue</code> did in Lesson 5.
     </div>
 
-    <h2>Quick Check</h2>
+    <h2 id="quiz">Quick Check</h2>
 
     <div class="quiz" data-answers='["reducer"]'>
       <p>Where do <code>State</code> and <code>Action</code> types come from at the <code>useReducer</code> call?</p>
@@ -194,7 +194,7 @@ function AddToCart({ item }: { item: CartItem }) {
       <label data-why="dispatch takes an Action as its argument; it isn't an Action itself."><input type="radio" name="q3" value="union"> <code>CartAction</code></label>
     </div>
 
-    <h2>Recipe: typed useReducer</h2>
+    <h2 id="recipe">Recipe: typed useReducer</h2>
     <ol>
       <li>Define <code>interface State</code> (or an alias like <code>CartItem[]</code>)</li>
       <li>Define <code>type Action = { type: "..."; ...payload }</code> — discriminated union, one member per transition</li>

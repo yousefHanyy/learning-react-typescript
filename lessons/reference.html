@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reference: React + TypeScript Patterns</title>
+  <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Reference</span>
+    <h1>React + TypeScript — Working Reference</h1>
+    <p class="lesson-meta">Living document &middot; updated with every lesson and every recurring question</p>
+
+    <div class="callout">
+      <strong>How to use this:</strong> organized by <em>task</em>, not by lesson ("I need to type a form" not "what was Lesson 8"). Every entry is complete enough to work from alone; the source link at the bottom of each entry jumps to the full explanation if you need more depth.
+    </div>
+
+    <nav class="toc">
+      <h2>Contents</h2>
+      <ol>
+        <li><a href="#props">Props &amp; component contracts</a></li>
+        <li><a href="#events">Events</a></li>
+        <li><a href="#state">useState</a></li>
+        <li><a href="#refs">Refs (both kinds)</a></li>
+        <li><a href="#generics">Generic components &amp; hooks</a></li>
+        <li><a href="#context">Context (the production pattern)</a></li>
+        <li><a href="#utility-types">Utility types cheat table</a></li>
+        <li><a href="#componentprops">Wrapping native elements</a></li>
+        <li><a href="#usereducer">useReducer</a></li>
+        <li><a href="#forms">Forms: three styles compared</a></li>
+        <li><a href="#polymorphic">Polymorphic components (<code>as</code> prop)</a></li>
+      </ol>
+    </nav>
+
+    <!-- ============ PROPS ============ -->
+    <h2 id="props">1. Props &amp; component contracts</h2>
+
+    <h3>The declaration decision</h3>
+<pre><code>interface ButtonProps {          // default choice — extends, merges, better errors
+  variant?: "primary" | "ghost";
+  onClick?: () =&gt; void;
+}
+
+type Shape =
+  | { kind: "circle"; r: number }    // type ONLY for unions &amp;
+  | { kind: "square"; s: number };   // intersections of object types</code></pre>
+    <p><strong>Gotcha:</strong> don't reach for <code>type</code> for plain object props — interfaces give clearer "not assignable" error messages and can be augmented.</p>
+    <p><em>Sources:</em> <a href="0001-typing-props.html#props-interface">Lesson 1 · interface</a>, <a href="0001-typing-props.html#props-type">Lesson 1 · type</a></p>
+
+    <h3>children</h3>
+<pre><code>interface CardProps {
+  children: React.ReactNode;   // accepts ANYTHING renderable:
+}                              // elements, strings, numbers, arrays, fragments,
+                              // false/null/undefined — use it unless you truly
+                              // want to restrict content</code></pre>
+    <p><em>Source:</em> <a href="0001-typing-props.html#props-children">Lesson 1 · children</a></p>
+
+    <h3>Optional props with defaults</h3>
+<pre><code>function Badge({ tone = "neutral", label }: { tone?: Tone; label: string }) {
+  //            ^ default in destructuring keeps prop optional in the type
+}</code></pre>
+    <p><em>Source:</em> <a href="0001-typing-props.html#recipe">Lesson 1 · Recipe</a></p>
+
+    <!-- ============ EVENTS ============ -->
+    <h2 id="events">2. Events</h2>
+
+    <h3>The handler types you'll actually use</h3>
+<pre><code>// React 19 (@types/react ≥ 19): SubmitEvent — NOT React.FormEvent
+// React.FormEvent is DEPRECATED as a submit handler type
+const handleSubmit = (e: React.SubmitEvent&lt;HTMLFormElement&gt;) =&gt; {
+  e.preventDefault();
+};
+
+const handleChange = (e: React.ChangeEvent&lt;HTMLInputElement&gt;) =&gt; {
+  console.log(e.currentTarget.value);   // currentTarget: typed element
+};                                      // target: EventTarget (untyped!) — prefer currentTarget
+
+// Handler PROP on your own component:
+interface SearchInputProps {
+  onChange: (value: string) =&gt; void;    // usually simplify — pass the value,
+}                                       // not the event (see wrapping section)</code></pre>
+    <p><strong>Gotcha (cost us a correction once):</strong> older tutorials say <code>React.FormEvent</code> for onSubmit — deprecated in @types/react v19 (verified against 19.2.10). Use <code>SubmitEvent&lt;HTMLFormElement&gt;</code>.</p>
+    <p><em>Sources:</em> <a href="0002-typing-events-and-state.html#event-handlers">Lesson 2 · event handlers</a>, glossary · Patterns</p>
+
+    <!-- ============ STATE ============ -->
+    <h2 id="state">3. useState</h2>
+
+    <h3>Inference vs explicit generic</h3>
+<pre><code>const [name, setName] = useState("");            // infers "" → string
+const [user, setUser] = useState(null);          // ⚠ infers null ONLY —
+const [user, setUser] = useState&lt;User | null&gt;(null);  // fix: explicit generic
+const [items, setItems] = useState&lt;Item[]&gt;([]);       // [] alone infers never[]</code></pre>
+    <p><strong>Rule:</strong> annotate when the initial value can't tell the whole story (empty array, null that will later hold an object).</p>
+
+    <h3>Union state — the workhorse pattern</h3>
+<pre><code>type FetchState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "success"; data: User[] }
+  | { status: "error"; message: string };
+
+const [state, setState] = useState&lt;FetchState&gt;({ status: "idle" });
+
+// rendering narrows automatically:
+if (state.status === "success") {
+  state.data.map(...)      // ✅ data only exists here — TS knows
+}</code></pre>
+    <p><strong>Gotcha:</strong> never model this as one interface with optional fields (<code>{ data?: User[]; error?: string }</code>) — you lose the guarantee they can't coexist.</p>
+    <p><em>Sources:</em> <a href="0002-typing-events-and-state.html#usestate-inference">Lesson 2 · inference</a>, <a href="0002-typing-events-and-state.html#union-state">Lesson 2 · union state</a></p>
+
+    <!-- ============ REFS ============ -->
+    <h2 id="refs">4. Refs (both kinds)</h2>
+
+    <h3>DOM refs — the honest nullable</h3>
+<pre><code>const inputRef = useRef&lt;HTMLInputElement&gt;(null);
+// inputRef.current: HTMLInputElement | null
+// null until AFTER first render/mount — that's why it's in the type
+
+useEffect(() =&gt; {
+  inputRef.current?.focus();     // optional chain or guard — never assume
+}, []);</code></pre>
+
+    <h3>Value refs — mutable box, NO re-render</h3>
+<pre><code>const renderCount = useRef(0);
+renderCount.current += 1;        // changes silently, no re-render, ever</code></pre>
+    <p><strong>Gotcha (the counter trap):</strong> mutating a ref does not update UI. If the screen should change when the value changes, it's <code>useState</code>, full stop. Refs are for values React doesn't need to react to (timer ids, previous values, DOM nodes).</p>
+
+    <h3>Refs to custom components (React 19)</h3>
+<pre><code>&lt;FancyInput ref={inputRef} /&gt;    // just works — ref is a normal prop now
+
+// typing YOUR component's ref prop:
+interface FancyInputProps {
+  ref?: React.Ref&lt;HTMLInputElement&gt;;   // Ref accepts object refs AND callback refs
+}</code></pre>
+    <p><strong>Gotcha:</strong> don't type it <code>RefObject&lt;T&gt;</code> — that rejects callback refs like <code>ref={(node) =&gt; …}</code>. <code>React.Ref&lt;T&gt;</code> accepts both. <code>forwardRef</code> is legacy — unnecessary since 19.</p>
+    <p><em>Sources:</em> <a href="0003-typing-refs.html#dom-refs">Lesson 3 · DOM refs</a>, <a href="0003-typing-refs.html#value-refs">Lesson 3 · value refs</a>, <a href="0003-typing-refs.html#ref-as-prop">Lesson 3 · ref-as-prop</a></p>
+
+    <!-- ============ GENERICS ============ -->
+    <h2 id="generics">5. Generic components &amp; hooks</h2>
+
+    <h3>Component pattern</h3>
+<pre><code>function List&lt;T&gt;({ items, renderItem }: {
+  items: T[];
+  renderItem: (item: T) =&gt; React.ReactNode;
+}) {
+  return &lt;ul&gt;{items.map(renderItem)}&lt;/ul&gt;;
+}
+
+// T inferred from the CALL SITE — never annotate manually:
+&lt;List items={users} renderItem={(u) =&gt; u.name} /&gt;   // T = User</code></pre>
+
+    <h3>Constraints with extends</h3>
+<pre><code>function Select&lt;T extends { id: string; label: string }&gt;(props: {
+  options: T[];
+  value: T["id"];                 // keyed access keeps it generic
+  onChange: (id: string) =&gt; void;
+}) {...}</code></pre>
+    <p><strong>Gotcha:</strong> without a constraint, <code>T</code> allows anything — you can't access <code>item.id</code> inside. The <code>extends</code> clause is what buys property access.</p>
+
+    <h3>Render props vs custom hooks (asked about — worth remembering)</h3>
+    <table>
+      <tr><th></th><th>Custom hook</th><th>Render prop</th></tr>
+      <tr><td>Reuses</td><td>logic (state/effects)</td><td>behavior wrapped around YOUR JSX</td></tr>
+      <tr><td>Choose when</td><td>you just need the data/functions</td><td>a component must control mounting/rendering around your content</td></tr>
+      <tr><td>Example</td><td><code>useDebouncedValue(text, 300)</code></td><td><code>&lt;Virtualizer items={x}&gt;{(v) =&gt; …}&lt;/Virtualizer&gt;</code></td></tr>
+    </table>
+    <p>Modern default: reach for a hook first; render props survive where the wrapper genuinely owns DOM/lifecycle around children.</p>
+    <p><em>Sources:</em> <a href="0004-generic-components.html#list-generic">Lesson 4 · List&lt;T&gt;</a>, <a href="0004-generic-components.html#constraint">Lesson 4 · constraints</a>, glossary · Patterns</p>
+
+    <!-- ============ CONTEXT ============ -->
+    <h2 id="context">6. Context — the production pattern</h2>
+
+    <h3>Honest null + guard hook (the standard)</h3>
+<pre><code>interface AuthContextValue {
+  user: User;
+  signIn: (email: string) =&gt; Promise&lt;void&gt;;
+}
+
+const AuthContext = createContext&lt;AuthContextValue | null&gt;(null);
+//                                     ^^^^^^ WHY: outside a provider the
+//                                     stored value IS null — honest types only
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState&lt;User | null&gt;(null);
+
+  const value = useMemo(() =&gt; ({
+    user,
+    signIn: async (email: string) =&gt; { /* ... */ },
+  }), [user]);
+  // ^ GOTCHA: without useMemo the value object is new every render →
+  //   EVERY consumer re-renders every time, context memoization defeated
+
+  return (
+    &lt;AuthContext value={value}&gt;    {/* React 19: no ".Provider" needed */}
+      {children}
+    &lt;/AuthContext&gt;
+  );
+}
+
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within &lt;AuthProvider&gt;");
+  return ctx;                       // narrowed: AuthContextValue — null gone
+}</code></pre>
+    <p><strong>Why the throw isn't just for debugging:</strong> the guard is also the narrowing mechanism — after it, TS eliminates <code>null</code> from the return type. Consumers never write a null check.</p>
+    <p><strong>When a non-null default is fine instead:</strong> values that legitimately exist before any provider — e.g. theme constants (<code>createContext("light")</code>). The rule: <em>does a sensible standalone default exist?</em> Yes → use it. No → honest null + guard hook.</p>
+    <p><strong>Encapsulation rule:</strong> components consume <code>useAuth()</code>, NEVER raw <code>useContext(AuthContext)</code> — keep the context object module-private, export only Provider + hook.</p>
+    <p><em>Sources:</em> <a href="0006-context-and-hooks.html#guard-hook-pattern">Lesson 5 · guard hook pattern</a>, <a href="0006-context-and-hooks.html#honesty-rule">Lesson 5 · the honesty rule</a></p>
+
+    <h3>Split contexts: state vs dispatch (performance)</h3>
+<pre><code>const CartStateContext = createContext&lt;CartState | null&gt;(null);
+const CartDispatchContext = createContext&lt;React.Dispatch&lt;CartAction&gt; | null&gt;(null);
+
+// Provider nests both (see useReducer section for the reducer)
+// Consumers pick their poison:
+const cart = useCart();              // re-renders on every cart change — needs values
+const dispatch = useCartDispatch();  // STABLE across renders → component using ONLY
+                                    // this never re-renders from cart updates</code></pre>
+    <p><strong>Why bother:</strong> dispatch is created once by useReducer and never changes. A button that only dispatches has zero reason to re-render when the cart contents change — but it would, if both lived in one context.</p>
+    <p><em>Sources:</em> <a href="0009-typing-usereducer.html#reducer-provider">Lesson 7 · provider pairing</a>, Exercise 3 stretch</p>
+
+    <!-- ============ UTILITY TYPES ============ -->
+    <h2 id="utility-types">7. Utility types — cheat table</h2>
+    <table>
+      <tr><th>Type</th><th>Does</th><th>Reach for when</th></tr>
+      <tr><td><code>Pick&lt;T, K&gt;</code></td><td>keep named keys</td><td>keeping FEW fields of many</td></tr>
+      <tr><td><code>Omit&lt;T, K&gt;</code></td><td>drop named keys</td><td>dropping FEW fields of many; carving out replaced props</td></tr>
+      <tr><td><code>Partial&lt;T&gt;</code></td><td>all keys optional</td><td>update payloads — "send whatever changed"</td></tr>
+      <tr><td><code>Required&lt;T&gt;</code></td><td>all keys required</td><td>rarely — normalizing loose input</td></tr>
+      <tr><td><code>Record&lt;K, V&gt;</code></td><td>key→value dictionary</td><td>caches, lookup maps: <code>Record&lt;string, User&gt;</code></td></tr>
+      <tr><td><code>Exclude&lt;U, M&gt;</code></td><td>remove union members</td><td><code>Exclude&lt;Status, "loading"&gt;</code></td></tr>
+      <tr><td><code>Extract&lt;U, M&gt;</code></td><td>keep union members</td><td>pulling a variant back out of a union</td></tr>
+      <tr><td><code>NonNullable&lt;T&gt;</code></td><td>strip null | undefined</td><td>narrowed-by-hand unions</td></tr>
+      <tr><td><code>ReturnType&lt;F&gt;</code></td><td>return type of function</td><td>syncing types with implementations: <code>ReturnType&lt;useAuth&gt;</code></td></tr>
+    </table>
+    <p><strong>Pick vs Omit tiebreaker:</strong> name whichever list is shorter. Keeping 2 of 10 → Pick. Dropping 1 of 10 → Omit.</p>
+    <p><em>Source:</em> <a href="0007-utility-types.html#utility-glance">Lesson 6 · glance table</a></p>
+
+    <!-- ============ WRAPPING NATIVES ============ -->
+    <h2 id="componentprops">8. Wrapping native elements</h2>
+
+    <h3>The ComponentProps family</h3>
+<pre><code>type ButtonProps = React.ComponentProps&lt;"button"&gt;;             // native tag
+type LinkProps = React.ComponentProps&lt;typeof RouterLink&gt;;      // another component
+type InputProps = React.ComponentPropsWithRef&lt;"input"&gt;;        // incl. ref
+type PlainInputProps = React.ComponentPropsWithoutRef&lt;"input"&gt;;// ref excluded</code></pre>
+
+    <h3>Replacing a prop signature (the TextField move)</h3>
+<pre><code>// GOAL: consumers pass a plain string onChange — hide the event machinery.
+// You're not "adding" onChange, you're REPLACING the native one.
+
+interface TextFieldOwnProps {
+  onChange: (value: string) =&gt; void;         // simplified contract
+}
+
+type TextFieldProps =
+  Omit&lt;React.ComponentPropsWithRef&lt;"input"&gt;, "onChange"&gt;   // carve out FIRST
+  &amp; TextFieldOwnProps;                                      // then intersect
+
+function TextField({ onChange, ...rest }: TextFieldProps) {
+  return (
+    &lt;input
+      {...rest}
+      onChange={(e) =&gt; onChange(e.currentTarget.value)}     // adapt &amp; delegate
+    /&gt;
+  );
+}</code></pre>
+    <p><strong>Why Omit before intersecting:</strong> an intersection of clashing members produces an impossible type (both signatures required), NOT an override. <code>Omit</code> removes the native member so yours wins cleanly. This exact move scales up into polymorphic components.</p>
+    <p><strong>Other legit replace-cases:</strong> locking <code>type="password"</code> (Omit "type"), forcing <code>value</code>/<code>defaultValue</code> semantics, narrowing <code>onChange</code> to controlled-only.</p>
+    <p><em>Sources:</em> <a href="0007-utility-types.html#react-componentprops">Lesson 6 · ComponentProps</a>, <a href="0012-polymorphic-components.html#omit-collisions">Lesson 9 · collisions</a></p>
+
+    <!-- ============ USEREDUCER ============ -->
+    <h2 id="usereducer">9. useReducer</h2>
+
+    <h3>The trio — annotate the reducer, infer everything else</h3>
+<pre><code>interface FiltersState {
+  query: string;
+  maxPrice: number;
+  inStockOnly: boolean;
+}
+
+type FiltersAction =
+  | { type: "setQuery"; value: string }      // payload fields exist ONLY
+  | { type: "setMaxPrice"; value: number }   // where they're needed —
+  | { type: "toggleInStock" }                // toggleInStock has NO value field,
+  | { type: "reset" };                       // so TS rejects stray payloads
+
+const initialFilters: FiltersState = { query: "", maxPrice: 100, inStockOnly: false };
+
+function filtersReducer(state: FiltersState, action: FiltersAction): FiltersState {
+  switch (action.type) {
+    case "setQuery":     return { ...state, query: action.value };
+    case "toggleInStock": return { ...state, inStockOnly: !state.inStockOnly };
+    // ...
+    default: {
+      const _exhaustive: never = action;    // the exhaustiveness guard
+      return state;
+    }
+  }
+}
+
+// ONE line wires it — State, Action, dispatch ALL inferred:
+const [filters, dispatch] = useReducer(filtersReducer, initialFilters);
+// dispatch: React.Dispatch&lt;FiltersAction&gt;  (typed for free)</code></pre>
+    <p><strong>Don't</strong> write <code>useReducer&lt;FiltersState, FiltersAction&gt;</code> — redundant; annotating the reducer parameter is the single source of truth.</p>
+
+    <h3>Exhaustiveness guard — the mechanics (memorize this)</h3>
+    <ol>
+      <li>All cases handled → narrowing eliminated every variant → <code>action</code> in <code>default</code> is <code>never</code> → assignment legal → compiles.</li>
+      <li>Add a variant, forget the case → that variant SURVIVES narrowing into <code>default</code> → assigning it to <code>never</code> fails → <strong>error appears IN the default branch</strong>: <code>Type '{ type: "clear"; }' is not assignable to type 'never'</code>.</li>
+      <li>The error location IS your TODO list — handle the missing case, compile passes again.</li>
+    </ol>
+    <p><strong>Gotcha:</strong> a <code>default</code> that just returns state WITHOUT the never-guard compiles silently forever — you lose all protection. The guard line is the whole point.</p>
+    <p><em>Sources:</em> <a href="0009-typing-usereducer.html#reducer-three-pieces">Lesson 7 · three pieces</a>, <a href="0009-typing-usereducer.html#exhaustiveness-guard">Lesson 7 · exhaustiveness</a>, Exercise 3 · Challenge 2</p>
+
+    <!-- ============ FORMS ============ -->
+    <h2 id="forms">10. Forms: three styles compared</h2>
+    <table>
+      <tr><th></th><th>onSubmit (classic)</th><th>action prop (19)</th><th>useActionState (19)</th></tr>
+      <tr><td>Handler signature</td><td><code>(e: SubmitEvent&lt;HTMLFormElement&gt;)</code></td><td><code>(formData: FormData)</code></td><td><code>(prevState, formData)</code> ⚠ flip!</td></tr>
+      <tr><td>preventDefault</td><td>manual</td><td>automatic</td><td>automatic</td></tr>
+      <tr><td>Data access</td><td>e.currentTarget / state</td><td><code>formData.get(name)</code></td><td><code>formData.get(name)</code></td></tr>
+      <tr><td>Result back in UI</td><td>manual setState</td><td>none</td><td><code>[state, …]</code> first slot</td></tr>
+      <tr><td>Pending state</td><td>manual</td><td>none</td><td><code>isPending</code> third slot</td></tr>
+      <tr><td>Use when</td><td>need live validation mid-submit / event control</td><td>fire-and-forget actions</td><td>forms with feedback: errors, success, loading</td></tr>
+    </table>
+
+    <h3>FormData.get — always narrow (no exceptions)</h3>
+<pre><code>async function signUp(formData: FormData): Promise&lt;void&gt; {
+  const name = formData.get("name");
+  // type: FormDataEntryValue | null   ← ALWAYS, even for existing inputs
+  if (typeof name !== "string" || name.trim() === "") return;
+
+  const email = formData.get("email");
+  if (typeof email !== "string" || !email.includes("@")) return;
+
+  await api.createUser({ name, email });   // both narrowed to string
+}</code></pre>
+    <p><strong>Why typeof, not truthiness:</strong> <code>"0"</code> and <code>" "</code> are truthy strings; <code>File</code> values pass truthiness too. <code>typeof x !== "string"</code> is the only check that's exactly right.</p>
+
+    <h3>useActionState — the four details people forget</h3>
+<pre><code>const [state, submitAction, isPending] =
+  useActionState(subscribe, { error: null });
+//  ^state     ^action      ^pending — slots in THIS order
+
+async function subscribe(
+  prevState: SubscribeState,      // ← state FIRST — the argument flip;
+  formData: FormData              //   bare action-prop handlers take formData only
+): Promise&lt;SubscribeState&gt; {
+  // EVERY code path returns a fresh state object —
+  // returning { error: null } on success is what clears old errors
+}</code></pre>
+    <p><strong>Gotchas:</strong> (1) state type comes from the INITIAL VALUE — no generic annotation needed; (2) forget the prevState param and TS flags the mismatch immediately — trust it.</p>
+    <p><em>Sources:</em> <a href="0010-typing-forms-and-actions.html#style-comparison">Lesson 8 · comparison</a>, <a href="0010-typing-forms-and-actions.html#use-action-state">Lesson 8 · useActionState</a></p>
+
+    <!-- ============ POLYMORPHIC ============ -->
+    <h2 id="polymorphic">11. Polymorphic components (as prop)</h2>
+<pre><code>import * as React from "react";
+
+interface ButtonOwnProps&lt;E extends React.ElementType&gt; {
+  variant?: "primary" | "ghost";
+  as?: E;                                     // the swap handle, typed by E
+}
+
+type PolymorphicProps&lt;E extends React.ElementType&gt; =
+  React.ComponentPropsWithRef&lt;E&gt; &amp; ButtonOwnProps&lt;E&gt;;
+
+export function Button&lt;E extends React.ElementType = "button"&gt;({
+  variant = "primary",
+  as,
+  ...rest                                   // ref rides in here (React 19)
+}: PolymorphicProps&lt;E&gt;) {
+  const Tag = as ?? "button";
+  return &lt;Tag {...rest} /&gt;;
+}</code></pre>
+<pre><code>&lt;Button disabled={!dirty} /&gt;                ✅ E = "button"
+&lt;Button as="a" href="/docs" target="_blank" /&gt; ✅ E = "a" — anchor props
+&lt;Button as="a" disabled /&gt;                  ❌ compile error: anchors have no disabled
+&lt;Button as={RouterLink} to="/me" /&gt;         ✅ component targets — ElementType
+                                           required (keyof JSX.IntrinsicElements
+                                           would reject Link!)</code></pre>
+    <p><strong>Constraint rule of thumb:</strong> <code>React.ElementType</code> when callers might swap in components (routers, design systems). <code>keyof JSX.IntrinsicElements</code> only when native tags are the whole point.</p>
+    <p><strong>Refs:</strong> free — <code>ComponentPropsWithRef&lt;E&gt;</code> puts ref in the spread; React 19 forwards it through function components natively. No forwardRef.</p>
+    <p><strong>Own-prop collisions:</strong> anything you redefine gets <code>Omit</code>'d from the element props BEFORE intersection (see §8) — same move, generic edition.</p>
+    <p><em>Source:</em> <a href="0012-polymorphic-components.html#real-pattern">Lesson 9 · the real pattern</a></p>
+
+    <div class="callout">
+      <strong>Maintenance note:</strong> this page grows automatically — each new lesson adds its patterns here, and anything you ask about twice gets promoted into the relevant section with extra emphasis.
+    </div>
+  </div>
+</body>
+</html>

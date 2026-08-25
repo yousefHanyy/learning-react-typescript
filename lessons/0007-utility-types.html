@@ -20,7 +20,7 @@
 
     <p>Utility types are small, built-in type functions: you give them a type, they hand back a reshaped one. You don't write them — you <em>use</em> them. Five cover ~95% of what you'll reach for at work.</p>
 
-    <h2>1. <code>Pick</code> &amp; <code>Omit</code> — choose what to keep</h2>
+    <h2 id="pick-omit">1. <code>Pick</code> &amp; <code>Omit</code> — choose what to keep</h2>
     <p>Both start from an existing type and take or remove keys. The second argument must be a <code>keyof</code> the source — TS errors on typos.</p>
 
 <pre><code>interface User {
@@ -48,7 +48,7 @@ interface SearchInputProps extends Omit&lt;React.InputHTMLAttributes&lt;HTMLInpu
       <strong>Pick vs Omit — how to decide:</strong> picking 2 of 10 fields? Use <code>Pick</code>. Removing 1 of 10? Use <code>Omit</code>. Both are fine — choose the shorter list.
     </div>
 
-    <h2>2. <code>Partial</code> &amp; <code>Required</code> — toggle optionality</h2>
+    <h2 id="partial-required">2. <code>Partial</code> &amp; <code>Required</code> — toggle optionality</h2>
 
 <pre><code>// All props optional — perfect for "update" payloads:
 type UserPatch = Partial&lt;User&gt;;
@@ -66,7 +66,7 @@ type CompleteConfig = Required&lt;{ host?: string; port?: number }&gt;;
       <strong>Shallow only.</strong> <code>Partial</code> makes top-level keys optional — it doesn't recurse into nested objects. <code>Partial&lt;{ profile: { name: string } }&gt;</code> still requires <code>profile.name</code> if <code>profile</code> is provided.
     </div>
 
-    <h2>3. <code>Record</code> — a typed dictionary</h2>
+    <h2 id="record">3. <code>Record</code> — a typed dictionary</h2>
 
 <pre><code>type Role = "admin" | "editor" | "viewer";
 
@@ -82,7 +82,7 @@ const permissions: Record&lt;Role, string[]&gt; = {
 const cache: Record&lt;string, User&gt; = {};
 cache["42"] = { id: "42", name: "Ada", email: "...", password: "...", createdAt: "..." };</code></pre>
 
-    <h2>4. React's own helpers — wrapping a native element</h2>
+    <h2 id="react-componentprops">4. React's own helpers — wrapping a native element</h2>
     <p>The real-world job: you build a design-system <code>&lt;FancyButton&gt;</code> that <em>looks</em> custom but should accept every normal <code>&lt;button&gt;</code> prop (<code>onClick</code>, <code>disabled</code>, <code>type</code>, <code>aria-*</code>, …). Listing them by hand is endless and always incomplete:</p>
 
 <pre><code>// ❌ Manual — you will forget props, and you repeat React's work:
@@ -135,7 +135,7 @@ interface StrictFancyButtonProps
       <strong>Shorthand.</strong> <code>ComponentProps&lt;"input"&gt;</code> is just a short alias for the longer <code>React.InputHTMLAttributes&lt;HTMLInputElement&gt;</code> you saw in section&nbsp;1. Same result, less typing.
     </div>
 
-    <h2>5. The rest at a glance</h2>
+    <h2 id="utility-glance">5. The rest at a glance</h2>
     <table>
       <tr><th>Utility</th><th>Does</th><th>When you need it</th></tr>
       <tr><td><code>Exclude&lt;T, U&gt;</code></td><td>Remove members from a union</td><td><code>Exclude&lt;"a"|"b"|"c", "a"&gt;</code> → <code>"b"|"c"</code></td></tr>
@@ -146,7 +146,7 @@ interface StrictFancyButtonProps
 
     <p>You don’t need to memorize these — just recognize them when you see them. Hover in your editor to verify what they produce.</p>
 
-    <h2>Quick Check</h2>
+    <h2 id="quiz">Quick Check</h2>
 
     <div class="quiz" data-answers='["Pick"]'>
       <p>You have a <code>User</code> with 10 fields; you need a type with just <code>id</code> and <code>name</code>. Which utility?</p>
@@ -169,7 +169,7 @@ interface StrictFancyButtonProps
       <label data-why="Exclude filters members of a union type — User isn't a union at all."><input type="radio" name="q3" value="Exclude"> <code>Exclude&lt;User, string&gt;</code></label>
     </div>
 
-    <h2>Recipe: utility types</h2>
+    <h2 id="recipe">Recipe: utility types</h2>
     <ol>
       <li>Subset by name → <code>Pick&lt;Source, "a" | "b"&gt;</code> (short keep-list) or <code>Omit&lt;Source, "x"&gt;</code> (short remove-list)</li>
       <li>All optional → <code>Partial&lt;T&gt;</code>; all required → <code>Required&lt;T&gt;</code> (shallow)</li>

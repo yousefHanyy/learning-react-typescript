@@ -13,6 +13,8 @@
 - Every lesson MUST end with a "Recipe" section: numbered steps for the pattern, as a quick reference when the user forgets how to do something while working (user requested 2026-07-22, applied retroactively to lessons 1-5)
 - Every lesson/exercise page has lesson-nav at BOTH top (`.lesson-nav.top`, right after lesson-meta) and bottom of the page (user requested 2026-07-22, applied to all existing pages)
 - Quiz options each carry a `data-why` explanation; quiz.js shows why the answer is correct, or why the chosen misconception is wrong (user requested 2026-07-22, applied to all lessons)
+- `lessons/reference.html` is the user's living working reference — task-organized, deep-linked to lesson sections. MUST be updated with every new lesson's patterns AND whenever the user asks about something twice / shows a recurring confusion (promote it with extra emphasis). Standing rule (user requested 2026-07-22)
+- All lesson h2 headings now carry anchor ids (e.g. #guard-hook-pattern, #exhaustiveness-guard) so reference entries can deep-link; keep adding ids when creating lessons
 
 ## Session Record
 - Session 1 (2026-07-22): Setting up workspace, foundational lesson on typing props
@@ -29,3 +31,4 @@
 - Session 12 (2026-07-22): Lesson 8 on forms & actions (action prop, FormData narrowing, useActionState); quiz explanations added everywhere (data-why + quiz.js upgrade)
 - Session 13 (2026-07-22): Exercise 3 covering Lessons 7-8 (filters reducer, break-the-guard drill, FormData narrowing, newsletter useActionState, stretch: reducer-in-provider)
 - Session 14 (2026-07-22): Lesson 9 on polymorphic components (as prop, ElementType constraint, ComponentPropsWithRef + Omit composition, React 19 free ref forwarding); user moved on without reporting Exercise 3 results — follow up
+- Session 15 (2026-07-22): Built living reference page (lessons/reference.html, task-organized, deep links); added anchor ids to all lesson h2s; fixed real bug in Lesson 9 main code block (as?: E missing from own props type); recorded reference-maintenance standing rule

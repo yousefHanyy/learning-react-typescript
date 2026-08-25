@@ -18,7 +18,7 @@
       <span>Next: <a href="0013-typing-data-fetching.html">Lesson 10: Typing Data Fetching</a></span>
     </div>
 
-    <h2>The problem</h2>
+    <h2 id="polymorphic-problem">The problem</h2>
     <p>Your design system has a beautiful <code>Button</code>. Then design asks for a button that navigates:</p>
 <pre><code>&lt;Button&gt;Save&lt;/Button&gt;                    &lt;!-- renders &lt;button&gt; --&gt;
 &lt;Button href="/docs"&gt;Docs&lt;/Button&gt;       &lt;!-- should render &lt;a&gt; --&gt;</code></pre>
@@ -26,7 +26,7 @@
 <pre><code>&lt;Button as="a" href="/docs"&gt;Docs&lt;/Button&gt;</code></pre>
     <p>This lesson builds the TypeScript machinery that makes that one prop type-safe.</p>
 
-    <h2>Attempt 1: the union trap</h2>
+    <h2 id="union-trap">Attempt 1: the union trap</h2>
     <p>The obvious first draft:</p>
 <pre><code>interface ButtonProps {
   as?: "button" | "a";
@@ -48,7 +48,7 @@ function Button({ as = "button", ...rest }: ButtonProps) {
       <strong>The insight:</strong> make the element itself a type parameter. When <code>as="a"</code>, the props become anchor props; when <code>as="button"</code>, button props. One generic, zero manual whitelisting.
     </div>
 
-    <h2>The real pattern</h2>
+    <h2 id="real-pattern">The real pattern</h2>
 <pre><code>import * as React from "react";
 
 type ButtonOwnProps = {           // props specific to YOUR component
@@ -81,7 +81,7 @@ export function Button&lt;E extends React.ElementType = "button"&gt;({
 &lt;Button href="/docs" /&gt;                            ❌ default is button — no href</code></pre>
     <p><code>E</code> is inferred from <code>as</code> at the call site — same call-site inference as generic hooks in Lesson 4. The invalid combination is caught <em>before the code runs</em>.</p>
 
-    <h2>Why not just <code>keyof JSX.IntrinsicElements</code>?</h2>
+    <h2 id="elementtype-vs-intrinsic">Why not just <code>keyof JSX.IntrinsicElements</code>?</h2>
     <p>A tighter-looking constraint, but it only allows intrinsic tags. The killer use case dies:</p>
 <pre><code>// react-router's Link — a COMPONENT, not an intrinsic tag
 &lt;Button as={Link} to="/profile"&gt;Profile&lt;/Button&gt;   ❌ with keyof JSX.IntrinsicElements
@@ -92,7 +92,7 @@ export function Button&lt;E extends React.ElementType = "button"&gt;({
       <strong>Rule of thumb:</strong> <code>keyof JSX.IntrinsicElements</code> when only native tags make sense (e.g. a Text component); <code>React.ElementType</code> for anything users might want to swap.
     </div>
 
-    <h2>When your props collide with the element's</h2>
+    <h2 id="omit-collisions">When your props collide with the element's</h2>
     <p>Suppose your Button has its own <code>type</code> concept, or wraps a native input whose <code>onChange</code> signature you replace (Lesson 6's TextField). Intersections don't override — clashing members merge badly. Carve them out first:</p>
 <pre><code>interface TextFieldOwnProps {
   onChange: (value: string) =&gt; void;   // simplified signature, not the event
@@ -115,7 +115,7 @@ function TextField&lt;E extends React.ElementType = "input"&gt;({
 }</code></pre>
     <p><code>Omit&lt;…, "onChange"&gt;</code> removes the native event-based signature so yours wins cleanly — identical move to Lesson 6's wrapper pattern, now generic over the element.</p>
 
-    <h2>Refs: free in React 19</h2>
+    <h2 id="polymorphic-refs">Refs: free in React 19</h2>
     <p>In older React you needed <code>forwardRef</code> plus a second conditional type just to type the ref. Since 19, <code>ref</code> is an ordinary prop on function components — and notice we used <code>ComponentPropsWithRef&lt;E&gt;</code>, so <code>ref</code> is already in the props type. The <code>{...rest}</code> spread carries it straight through:</p>
 <pre><code>const form = useRef&lt;HTMLFormElement&gt;(null);
 
@@ -123,7 +123,7 @@ function TextField&lt;E extends React.ElementType = "input"&gt;({
 &lt;Button as="form" ref={form} onSubmit={submit}&gt;…&lt;/Button&gt;;</code></pre>
     <p>No extra code. This is one of the concrete ways React 19 shrinks polymorphic components by roughly a third.</p>
 
-    <h2>Quick Check</h2>
+    <h2 id="quiz">Quick Check</h2>
     <div class="quiz" data-answers='["components"]'>
       <p>What does <code>E extends React.ElementType</code> allow that <code>E extends string</code> does not?</p>
       <label data-why="ElementType includes component types, so as={Link} works and its props (like to) become required and typed."><input type="radio" name="q1" value="components"> Using custom components like a router's <code>Link</code></label>
@@ -145,7 +145,7 @@ function TextField&lt;E extends React.ElementType = "input"&gt;({
       <label data-why="Dynamic tags accept refs like any element — ComponentPropsWithRef exists precisely to type them."><input type="radio" name="q3" value="impossible"> Refs can't be used with swapped elements</label>
     </div>
 
-    <h2>Recipe: polymorphic component</h2>
+    <h2 id="recipe">Recipe: polymorphic component</h2>
     <ol>
       <li>List your own props in an interface (<code>variant</code>, <code>size</code>…).</li>
       <li>Type props as <code>Omit&lt;React.ComponentPropsWithRef&lt;E&gt;, keyof OwnProps&gt; &amp; OwnProps</code> — omit any member you replace.</li>

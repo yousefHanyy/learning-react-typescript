@@ -20,7 +20,7 @@
 
     <p>Two things you'll type every single day at work: <strong>event handlers</strong> and <strong>state</strong>. Both are simpler than they first look.</p>
 
-    <h2>1. Event handlers</h2>
+    <h2 id="event-handlers">1. Event handlers</h2>
     <p>React exports a handler type for every event. Use <code>React.XEventHandler&lt;HTMLElement&gt;</code> when you pass a handler as a <strong>named function</strong>:</p>
 
 <pre><code>// onChange on an input → ChangeEvent
@@ -50,7 +50,7 @@ function App() {
       <em>Note:</em> <code>React.FormEvent</code> was deprecated in <code>@types/react</code> 19.2.10 — use <code>SubmitEvent</code> / <code>SubmitEventHandler</code> for forms.
     </div>
 
-    <h2>2. <code>useState</code> inference</h2>
+    <h2 id="usestate-inference">2. <code>useState</code> inference</h2>
     <p>TS infers state type from the initial value. This <strong>causes a bug</strong> — the classic empty-array trap:</p>
 
 <pre><code>const [items, setItems] = useState([]);
@@ -65,7 +65,7 @@ setItems([...items, { id: 1, name: 'A' }]); // ❌ error</code></pre>
 const [items, setItems] = useState&lt;Item[]&gt;([]);
 setItems([...items, { id: 1, name: 'A' }]); // ✅</code></pre>
 
-    <h2>3. Union state (the workhorse)</h2>
+    <h2 id="union-state">3. Union state (the workhorse)</h2>
     <p>This is the pattern you'll see in real apps for anything async — fetch results, auth, modals. It's the <code>type</code> union from Lesson 1 applied to state:</p>
 
 <pre><code>type RequestState =
@@ -97,7 +97,7 @@ function load() {
       <strong>Why this beats a boolean <code>isLoading</code> flag:</strong> it encodes all possible states at once, and the compiler catches illegal combinations (e.g., <code>data</code> present while <code>loading</code>). No more "does <code>data</code> exist?" checks.
     </div>
 
-    <h2>Quick Check</h2>
+    <h2 id="quiz">Quick Check</h2>
 
     <div class="quiz" data-answers='["infers"]'>
       <p>When a handler is inline in JSX, TS <em>infers</em> the event type or requires a manual one?</p>
@@ -113,7 +113,7 @@ function load() {
       <label data-why="It compiles, but you lose all checking on every item — worse than fixing the type properly."><input type="radio" name="q2" value="any"> <code>useState&lt;any[]&gt;([])</code></label>
     </div>
 
-    <h2>Recipe: events &amp; state</h2>
+    <h2 id="recipe">Recipe: events &amp; state</h2>
     <p><strong>Events:</strong></p>
     <ol>
       <li>Inline handler in JSX → no annotation needed (TS infers)</li>

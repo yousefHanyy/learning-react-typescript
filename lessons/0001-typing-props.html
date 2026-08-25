@@ -20,7 +20,7 @@
 
     <p>The first thing you do for every React+TS component: <strong>type its props</strong>. Two patterns cover 90% of what you'll see in production.</p>
 
-    <h2><code>interface</code> (default)</h2>
+    <h2 id="props-interface"><code>interface</code> (default)</h2>
 
 <pre><code>interface ButtonProps {
   label: string;
@@ -37,7 +37,7 @@ function Button({ label, variant, disabled, onClick }: ButtonProps) {
       <strong>Convention:</strong> <code>ComponentNameProps</code> — e.g. <code>ButtonProps</code>, <code>CardProps</code>. This is what you'll see in every production codebase.
     </div>
 
-    <h2><code>type</code> (for unions/intersections)</h2>
+    <h2 id="props-type"><code>type</code> (for unions/intersections)</h2>
 
 <pre><code>type ButtonProps = {
   label: string;
@@ -51,7 +51,7 @@ function Button({ label, variant, disabled, onClick }: ButtonProps) {
       <strong>Rule:</strong> <code>interface</code> for plain objects. <code>type</code> when you need unions, intersections, or mapped types. Ask "could this be extended?" — if yes, use <code>interface</code>.
     </div>
 
-    <h2><code>children</code></h2>
+    <h2 id="props-children"><code>children</code></h2>
 
 <pre><code>interface CardProps {
   title: string;
@@ -60,7 +60,7 @@ function Button({ label, variant, disabled, onClick }: ButtonProps) {
 
     <p><code>React.ReactNode</code> accepts JSX, strings, numbers, null, undefined, and arrays — it's the standard choice.</p>
 
-    <h2>Quick Check</h2>
+    <h2 id="quiz">Quick Check</h2>
 
     <div class="quiz" data-answers='["interface"]'>
       <p>Default keyword for standard component props?</p>
@@ -76,7 +76,7 @@ function Button({ label, variant, disabled, onClick }: ButtonProps) {
       <label data-why="JSX.Element only describes actual elements — text-only children would fail the check."><input type="radio" name="q2" value="JSXElement"> <code>JSX.Element</code></label>
     </div>
 
-    <h2>Recipe: typing props</h2>
+    <h2 id="recipe">Recipe: typing props</h2>
     <ol>
       <li><code>interface ComponentNameProps { ... }</code> — always this naming</li>
       <li><code>children</code> → <code>React.ReactNode</code></li>
