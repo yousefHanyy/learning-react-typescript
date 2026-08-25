@@ -93,6 +93,34 @@ function Select&lt;T&gt;({ options, getValue, onSelect }: SelectProps&lt;T&gt;) 
       Using a <code>function</code> declaration (as above) sidesteps this entirely.
     </div>
 
+    <h2 id="when-generic">When to reach for a generic — and when not</h2>
+    <p>A generic has exactly <strong>one job</strong>: preserve a type the caller controls across two or more positions in a signature. Nothing to link → no generic. That's the entire decision.</p>
+    <p><strong>The only two legitimate jobs:</strong></p>
+<pre><code>// Job 1: CORRELATION — the same T appears in multiple slots and must stay in sync
+function List&lt;T&gt;({ items, renderItem }: {
+  items: T[];                              // whatever array you pass...
+  renderItem: (item: T) =&gt; React.ReactNode;
+})                                         // ...your callback receives ITS elements
+
+// Job 2: CALLER KNOWS BEST — the implementation genuinely cannot know,
+// so the caller declares (Lesson 10's wrapper lives here too)
+const users = await getJSON&lt;User[]&gt;(url);   // T appears once — in the return</code></pre>
+    <p><strong>Three smell tests, in order:</strong></p>
+    <ol>
+      <li><strong>Duplication test:</strong> without the generic, would you copy-paste the whole function per type? No → you probably don't need it.</li>
+      <li><strong>Single-use test:</strong> count the <code>T</code>s. One occurrence in the params, nowhere else? Delete the generic — when a constraint does all the work, the constraint IS the type.</li>
+      <li><strong>Rename test:</strong> replace every <code>T</code> with <em>"whateverTheCallerSent"</em>. Does the signature still promise something true and useful? If it reads as ceremony, it is ceremony.</li>
+    </ol>
+<pre><code>// ❌ generic theater — T links nothing; the constraint did everything
+function getTotal&lt;T extends CartItem[]&gt;(items: T): number
+
+// ✅ the honest version — identical power, zero ceremony
+function getTotal(items: CartItem[]): number
+
+// ✅ generic earns its keep — input and output are THE SAME caller type
+function useDebouncedValue&lt;T&gt;(value: T, delay: number): T</code></pre>
+    <p><strong>Union or generic?</strong> A closed set of shapes you know today → union (<code>"idle" | "loading"</code>). Open-ended, caller-owned shapes → generic. And the workflow that prevents premature generics altogether: <em>write it concrete first</em>. The moment a second type arrives and you feel the copy-paste reflex — that exact moment is when you lift it into a generic. Concrete→generic refactoring is cheap; unwriting an unnecessary generic is morale tax.</p>
+
     <h2 id="quiz">Quick Check</h2>
 
     <div class="quiz" data-answers='["inferred"]'>

@@ -11,6 +11,7 @@
   --border: #e5e7eb;
   --code-bg: #f3f4f6;
   --card-bg: #ffffff;
+  --promoted-bg: #fef3c7;
   --success: #10b981;
   --error: #ef4444;
   --warning: #f59e0b;
@@ -30,6 +31,7 @@
     --border: #334155;
     --code-bg: #1e293b;
     --card-bg: #1e293b;
+    --promoted-bg: #3a3012;
   }
 }
 
@@ -100,6 +102,26 @@ pre code {
 
 .callout-tip {
   border-left-color: var(--success);
+}
+
+/* Reference entries promoted from user questions */
+.promoted {
+  background: var(--promoted-bg);
+  border-left: 4px solid var(--warning);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.promoted::before {
+  content: "From your questions";
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--warning);
+  margin-bottom: 0.35rem;
 }
 
 .lesson-meta {

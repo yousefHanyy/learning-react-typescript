@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exercise 4: Polymorphic &amp; Data Fetching</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/exercise.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Exercise 4</span>
+    <h1>Polymorphic Components &amp; Data Fetching</h1>
+    <p class="lesson-meta">Covers Lessons 9–10 &middot; ~20 min &middot; Challenge 0 is a judgment drill — no code, just calls</p>
+
+    <div class="lesson-nav top">
+      <span><a href="0013-typing-data-fetching.html">&larr; Lesson 10: Typing Data Fetching</a></span>
+      <span>Next: <a href="0015-typing-forms-advanced.html">Lesson 11: Advanced Form Patterns</a></span>
+    </div>
+
+    <div class="callout">
+      <strong>How to do this:</strong> attempt before revealing. For Challenge 0, say your verdict AND which job/test decided it out loud — the reasoning is the skill being trained.
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 0 &middot; Judgment drill</div>
+      <h3>Generic, concrete, or union?</h3>
+      <p class="objective">Objective: apply the one-job model until it's reflexive. No coding — verdict + deciding test out loud.</p>
+      <div class="task">
+        <ol>
+          <li><code>function formatDate&lt;T extends Date&gt;(d: T): string</code></li>
+          <li><code>function groupBy&lt;K extends string, V&gt;(items: V[], key: (v: V) =&gt; K): Record&lt;K, V[]&gt;</code></li>
+          <li>A status prop that can only ever be <code>"open" | "closed"</code></li>
+          <li><code>function usePrevious&lt;T&gt;(value: T): T | undefined</code> — returns the value from the last render</li>
+          <li><code>function clamp&lt;T extends number&gt;(n: T, min: number, max: number): number</code></li>
+          <li><code>function parseJSON&lt;T&gt;(raw: string): T</code></li>
+        </ol>
+      </div>
+      <div class="solution">
+        <h4>Solutions — with the deciding test for each</h4>
+        <ol>
+          <li><strong>Concrete.</strong> Single-use test: T appears once and links nothing. <code>(d: Date)</code> is identical power.</li>
+          <li><strong>Generic (correlation).</strong> The SAME V flows from items into the record's values, and K ties keyFn's return to the dictionary's keys. Break either link and callers lose type safety — duplication test passes hard: you'd need a copy per shape.</li>
+          <li><strong>Union.</strong> Closed set known today. A generic constraint would be ceremony over exactly two members.</li>
+          <li><strong>Generic (correlation).</strong> Input and output are THE SAME caller type across renders — Job 1 in its purest form. Concrete is impossible: every caller has a different type.</li>
+          <li><strong>Concrete.</strong> Single-use test: nothing correlates, and note the return isn't even T — it's plain number. The constraint did all the work, so delete it.</li>
+          <li><strong>Generic (caller knows best).</strong> The implementation cannot know what raw holds — Job 2. Same deal as getJSON: declaration lives at the call site, ideally near runtime validation.</li>
+        </ol>
+        <p><strong>Scoring honestly:</strong> 6/6 with reasons → the model stuck. Any miss on 1/5/6 → reread the single-use test in <a href="0004-generic-components.html#when-generic">Lesson 4</a>; those three are the same trap wearing different hats.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 1 &middot; Lesson 9</div>
+      <h3>Build an Avatar polymorphic component</h3>
+      <p class="objective">Objective: the full pattern from scratch — constraint, own props, default tag.</p>
+      <div class="task">
+        An <code>Avatar</code> usually renders an <code>&lt;img&gt;</code>, but clickable avatars must render as <code>&lt;a&gt;</code> or a router link.
+        <ul>
+          <li>Own props: <code>src?: string</code> (only meaningful for images), <code>size?: "sm" | "md" | "lg"</code></li>
+          <li><code>as</code> swaps the element; default <code>"img"</code></li>
+          <li>Must compile: <code>&lt;Avatar src="/me.png" /&gt;</code> and <code>&lt;Avatar as="a" href="/profile" /&gt;</code></li>
+          <li>Must NOT compile: <code>&lt;Avatar href="/profile" /&gt;</code> (no as)</li>
+        </ul>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>import * as React from "react";
+
+interface AvatarOwnProps&lt;E extends React.ElementType&gt; {
+  src?: string;
+  size?: "sm" | "md" | "lg";
+  as?: E;
+}
+
+type AvatarProps&lt;E extends React.ElementType&gt; =
+  React.ComponentPropsWithRef&lt;E&gt; &amp; AvatarOwnProps&lt;E&gt;;
+
+export function Avatar&lt;E extends React.ElementType = "img"&gt;({
+  size = "md",
+  as,
+  ...rest
+}: AvatarProps&lt;E&gt;) {
+  const Tag = as ?? "img";
+  return &lt;Tag {...rest} /&gt;;
+}</code></pre>
+        <p>The no-<code>as</code> rejection falls out for free: without it, E defaults to <code>"img"</code>, whose props have no <code>href</code>. Note this is the corrected shape from the lesson — own props are generic (<code>AvatarOwnProps&lt;E&gt;</code>) because <code>as?: E</code> needs the parameter.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 2 &middot; Lesson 10</div>
+      <h3>Fix the broken fetch layer</h3>
+      <p class="objective">Objective: spot the two classic bugs before running anything.</p>
+      <div class="task">
+        This wrapper ships Friday. Find both bugs and state their symptom:
+<pre><code>async function fetchPosts(): Promise&lt;Post[]&gt; {
+  const res = await fetch("/api/posts");
+  const posts = await res.json();
+  return posts;
+}</code></pre>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+        <ol>
+          <li><strong>No <code>res.ok</code> check.</strong> Symptom: a 500 response resolves happily, <code>.json()</code> parses the error body, and the app renders "valid" garbage — or crashes later on a missing field. Remember: fetch only rejects on network failure, never HTTP status.</li>
+          <li><strong>Silent assertion.</strong> <code>res.json()</code> is <code>any</code>, so returning it as <code>Post[]</code> compiles with zero acknowledgment of the trust boundary. Not wrong to assert — wrong to do it invisibly and scattered. Make it explicit and centralized:</li>
+        </ol>
+<pre><code>async function fetchPosts(): Promise&lt;Post[]&gt; {
+  const res = await fetch("/api/posts");
+  if (!res.ok) throw new Error(`Posts failed: ${res.status}`);
+  return (await res.json()) as Post[];
+}</code></pre>
+        <p>Bonus point if you also flagged: no way for callers to distinguish loading/error yet — that's Challenge 3's job.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 3 &middot; Lesson 10</div>
+      <h3>useSearchResults — the full machine</h3>
+      <p class="objective">Objective: FetchState machine + hook + narrowed consumption, end to end.</p>
+      <div class="task">
+        Build search against <code>/api/search?q=…</code>:
+        <ul>
+          <li><code>useSearch(query)</code> returns a FetchState&lt;Result[]&gt;-style union — design the members</li>
+          <li>Refetches when query changes; stale responses must not win (typing fast!)</li>
+          <li>Component renders: loading text / result list / error alert — data access must be impossible outside success</li>
+        </ul>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>interface Result {
+  id: string;
+  title: string;
+}
+
+type SearchState =
+  | { status: "idle" }                        // empty query — not an error!
+  | { status: "loading" }
+  | { status: "success"; data: Result[] }
+  | { status: "error"; message: string };
+
+function useSearch(query: string): SearchState {
+  const [state, setState] = useState&lt;SearchState&gt;({ status: "idle" });
+
+  useEffect(() =&gt; {
+    if (!query.trim()) return;                // idle stays idle
+    let cancelled = false;
+    setState({ status: "loading" });
+
+    getJSON&lt;Result[]&gt;(`/api/search?q=${encodeURIComponent(query)}`)
+      .then((data) =&gt; { if (!cancelled) setState({ status: "success", data }); })
+      .catch((err) =&gt; { if (!cancelled) setState({ status: "error", message: String(err) }); });
+
+    return () =&gt; { cancelled = true; };
+  }, [query]);
+
+  return state;
+}
+
+function SearchPanel({ query }: { query: string }) {
+  const state = useSearch(query);
+
+  switch (state.status) {
+    case "idle":     return null;
+    case "loading":  return &lt;p&gt;Searching…&lt;/p&gt;;
+    case "success":
+      return (
+        &lt;ul&gt;
+          {state.data.map((r) =&gt; &lt;li key={r.id}&gt;{r.title}&lt;/li&gt;)}
+        &lt;/ul&gt;
+      );
+    case "error":
+      return &lt;p role="alert"&gt;{state.message}&lt;/p&gt;;
+  }
+}</code></pre>
+        <p>Details worth self-checking: the <code>"idle"</code> member exists so an empty query box isn't a lie ("loading" forever); <code>cancelled</code> flips during cleanup so a slow old request can't overwrite a fresh one's results; and <code>state.data.map</code> compiling at all proves the discriminant narrowing held.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Stretch &middot; Lessons 9 + 10</div>
+      <h3>Paginated table, both lessons combined</h3>
+      <p class="objective">Objective: production-grade composition — polymorphic shell around fetching state.</p>
+      <div class="task">
+        A user directory: paginated API (<code>/api/users?page=N</code>), rows that link to profiles.
+        <ul>
+          <li>Type the page envelope: <code>{ items: User[]; total: number }</code></li>
+          <li>Fetch per page with the state machine; Next/Prev buttons disabled appropriately (loading or boundary pages)</li>
+          <li>Rows render through a polymorphic component so each row can be an <code>&lt;a&gt;</code> — but the table itself doesn't care what it wraps</li>
+        </ul>
+        Design freely; the grading criteria are the types, not pixel details.
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>interface UserPage {
+  items: User[];
+  total: number;
+}
+
+function Directory() {
+  const [page, setPage] = useState(1);
+  const state = useFetch&lt;UserPage&gt;(`/api/users?page=${page}`);
+
+  if (state.status !== "success") {
+    return &lt;p&gt;{state.status === "error" ? state.message : "Loading…"}&lt;/p&gt;;
+  }
+
+  const { items, total } = state.data;
+  const maxPage = Math.ceil(total / 25);
+
+  return (
+    &lt;&gt;
+      &lt;table&gt;
+        &lt;tbody&gt;
+          {items.map((u) =&gt; (
+            &lt;tr key={u.id}&gt;
+              &lt;td&gt;
+                &lt;Avatar as="a" href={`/users/${u.id}`} src={u.avatar} size="sm"&gt;
+                  {u.name}
+                &lt;/Avatar&gt;
+              &lt;/td&gt;
+              &lt;td&gt;{u.email}&lt;/td&gt;
+            &lt;/tr&gt;
+          ))}
+        &lt;/tbody&gt;
+      &lt;/table&gt;
+      &lt;button disabled={page &lt;= 1 || state.status === "loading"} onClick={() =&gt; setPage(page - 1)}&gt;
+        Prev
+      &lt;/button&gt;
+      &lt;button disabled={page &gt;= maxPage || state.status === "loading"} onClick={() =&gt; setPage(page + 1)}&gt;
+        Next
+      &lt;/button&gt;
+    &lt;/&gt;
+  );
+}</code></pre>
+        <p>What's being graded under the hood:</p>
+        <ol>
+          <li><strong>Envelope typing</strong> mirrors the server contract exactly — items + total, no invented optionals.</li>
+          <li><strong>Early return narrows</strong> everything below it to success — cleaner than switch when one branch dominates. After the guard, <code>state.data</code> is free of checks.</li>
+          <li><strong>Avatar-as-link</strong> shows why the polymorphic pattern exists: the table composes rows without knowing they're anchors; E infers <code>"a"</code>, so <code>href</code> type-checks while <code>disabled</code> wouldn't.</li>
+        </ol>
+        <p>Note one deliberate wrinkle: <code>state.status === "loading"</code> inside the success block would always be false — after the early return TS has already narrowed it away. If you wrote that check anyway, TS flags it as impossible. That contradiction is the machine working.</p>
+      </div>
+    </div>
+
+    <p>All four challenges done? You've now touched every pattern from Lessons 1–10 except forms — Exercise 5 territory. Report scores or move on; both work.</p>
+
+    <div class="lesson-nav">
+      <span><a href="0013-typing-data-fetching.html">&larr; Lesson 10: Typing Data Fetching</a></span>
+      <span>Next: <a href="0015-typing-forms-advanced.html">Lesson 11: Advanced Form Patterns</a></span>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 10: Typing Data Fetching</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Lesson 10</span>
+    <h1>Typing Data Fetching</h1>
+    <p class="lesson-meta">Prerequisite: Lessons 2 (union state), 4 (generics)</p>
+
+    <div class="lesson-nav top">
+      <span><a href="0012-polymorphic-components.html">&larr; Lesson 9: Polymorphic Components</a></span>
+      <span>Next: <a href="0014-exercise-data-fetching.html">Exercise 4</a></span>
+    </div>
+
+    <h2 id="any-boundary">The <code>any</code> at the boundary</h2>
+    <p>Everything so far kept the compiler inside your codebase. Fetching breaks that: data arrives from a server as text, and TypeScript has no idea what's in it:</p>
+<pre><code>const res = await fetch("/api/users");
+const users = await res.json();
+//    ^ Promise&lt;any&gt; — json()'s actual return type.
+//      users: any. Every property access compiles. Zero protection.</code></pre>
+    <p><code>res.json()</code> <em>cannot</em> know your schema — it parses whatever bytes arrived. So it returns <code>any</code>, and from there the compiler rubber-stamps everything: <code>users.nmae</code> (typo), <code>users[0].address.city</code> (doesn't exist) — all "fine" until runtime.</p>
+    <p>This boundary is where real projects make a choice:</p>
+    <ol>
+      <li><strong>Assert and trust</strong> — declare what the server <em>should</em> send and cast once at the edge. Today's lesson. It's what most codebases do daily.</li>
+      <li><strong>Validate at runtime</strong> — parse with a schema library like <code>zod</code>: <code>UserSchema.parse(json)</code> checks every field and gives you the type from the same schema. What serious teams add once the API misbehaves. Know it exists; learn it when you hit a project using it.</li>
+    </ol>
+
+    <h2 id="response-shapes">Step 1: type the shapes</h2>
+    <p>Before any fetching code, describe the data exactly as the API sends it — including things your UI doesn't show yet:</p>
+<pre><code>interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: "admin" | "member";     // narrow unions beat string — free validation hints
+}</code></pre>
+    <div class="callout">
+      <strong>Gotcha:</strong> don't weaken fields "to be safe" (<code>id?: number</code>). If the API guarantees it, say so. Optional-everything types push null-checks onto every consumer and hide real contract violations. If the API is genuinely inconsistent, that's what runtime validation (option 2) is for.
+    </div>
+
+    <h2 id="typed-wrapper">Step 2: a typed fetch wrapper</h2>
+<pre><code>async function getJSON&lt;T&gt;(url: string): Promise&lt;T&gt; {
+  const res = await fetch(url);
+
+  if (!res.ok) {
+    throw new Error(`Request failed: ${res.status} ${res.statusText}`);
+  }
+
+  return (await res.json()) as T;
+}
+
+// call site — T inferred from usage context or annotated:
+const users = await getJSON&lt;User[]&gt;("/api/users");   // users: User[]</code></pre>
+    <p>Two details carry the whole lesson:</p>
+    <ol>
+      <li><strong><code>if (!res.ok)</code></strong> — the trap everyone hits: <code>fetch</code> does NOT reject on 404 or 500. It resolves happily; only network-level failures throw. Without this check, a failed request flows onward as "valid data" (usually <code>{}</code> or an error page HTML parsed as JSON). The wrapper turns HTTP failures into real exceptions, caught by your state machine.</li>
+      <li><strong><code>as T</code></strong> — the one sanctioned lie. You're telling the compiler "I've verified the server sends T here." It believes you and stops checking — which is precisely the deal: checking happens once, at this single choke point, instead of never or everywhere.</li>
+    </ol>
+    <div class="callout">
+      <strong>Rule:</strong> all <code>as</code>-assertions about external data live in ONE layer (this wrapper). If a type lie turns out wrong, you fix it in one file — not scattered across every component.
+    </div>
+
+    <h2 id="fetch-hook">Step 3: the state machine hook</h2>
+    <p>The Lesson 2 union-state pattern, made generic and reusable:</p>
+<pre><code>import { useEffect, useState } from "react";
+
+type FetchState&lt;T&gt; =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "success"; data: T }        // data lives HERE and only here
+  | { status: "error"; message: string };
+
+function useFetch&lt;T&gt;(url: string): FetchState&lt;T&gt; {
+  const [state, setState] = useState&lt;FetchState&lt;T&gt;&gt;({ status: "idle" });
+
+  useEffect(() =&gt; {
+    let cancelled = false;                // guard against out-of-order responses
+    setState({ status: "loading" });
+
+    getJSON&lt;T&gt;(url)
+      .then((data) =&gt; {
+        if (!cancelled) setState({ status: "success", data });
+      })
+      .catch((err) =&gt; {
+        if (!cancelled) setState({ status: "error", message: String(err) });
+      });
+
+    return () =&gt; { cancelled = true; };   // effect cleanup
+  }, [url]);
+
+  return state;
+}</code></pre>
+    <p>Note what the type does for the implementation: inside <code>.then</code>, <code>T</code> is already fixed by the caller — <code>setState({ status: "success", data })</code> won't compile unless <code>data</code> really is <code>T</code>.</p>
+
+    <h2 id="consuming">Step 4: consuming — narrowing makes bugs unrepresentable</h2>
+<pre><code>function UserList() {
+  const state = useFetch&lt;User[]&gt;("/api/users");
+
+  switch (state.status) {
+    case "idle":
+    case "loading":
+      return &lt;p&gt;Loading…&lt;/p&gt;;
+    case "success":
+      return (
+        &lt;ul&gt;
+          {state.data.map((u) =&gt; &lt;li key={u.id}&gt;{u.name}&lt;/li&gt;)}
+          {/* ^ state.data: User[] — guaranteed. No ?., no !, no if */}
+        &lt;/ul&gt;
+      );
+    case "error":
+      return &lt;p role="alert"&gt;{state.message}&lt;/p&gt;;
+  }
+}</code></pre>
+    <p><code>state.data.map(...)</code> cannot crash with "cannot read properties of undefined" — in the <code>"success"</code> branch the union has narrowed to the one member that HAS <code>data</code>. Compare with the classic <code>isLoading / data? / error?</code> triple-boolean approach, where every combination ("loading AND error AND data") is representable and each consumer re-defines precedence.</p>
+    <div class="callout">
+      <strong>Design principle worth stealing:</strong> model states so illegal combinations are <em>unrepresentable</em> — then whole bug classes stop compiling instead of being debugged.
+    </div>
+
+    <h2 id="quiz">Quick Check</h2>
+    <div class="quiz" data-answers='["any"]'>
+      <p>Per its own type signature, what does <code>res.json()</code> return?</p>
+      <label data-why="It parses arbitrary bytes — no schema knowledge possible — so the signature promises nothing beyond any."><input type="radio" name="q1" value="any"> <code>Promise&lt;any&gt;</code></label>
+      <label data-why="Wishful thinking — the method can't know YOUR interface; claiming the type is the assertion's job at the call site."><input type="radio" name="q1" value="user"> <code>Promise&lt;User&gt;</code></label>
+      <label data-why="It doesn't return raw text — that's res.text(); json() parses and hands back unconstrained any."><input type="radio" name="q1" value="string"> <code>Promise&lt;string&gt;</code></label>
+    </div>
+
+    <div class="quiz" data-answers='["assertion"]'>
+      <p>Where does the "trust" live when you call <code>getJSON&lt;User[]&gt;(...)</code>?</p>
+      <label data-why="as T tells the compiler you verified the shape — it believes and stops checking; runtime could still differ."><input type="radio" name="q2" value="assertion"> In the <code>as T</code> assertion — compiler trusts, never verifies</label>
+      <label data-why="Types are erased at compile time — nothing generated code inspects response objects against interfaces."><input type="radio" name="q2" value="runtime"> TypeScript validates the response shape at runtime</label>
+      <label data-why="Backwards — fetch resolves fine on 404/500, which is exactly why the wrapper checks res.ok manually."><input type="radio" name="q2" value="fetch"> <code>fetch</code> itself throws when the body doesn't match</label>
+    </div>
+
+    <div class="quiz" data-answers='["narrow"]'>
+      <p>In the <code>"success"</code> branch, why is <code>state.data.map(...)</code> safe?</p>
+      <label data-why="Only the success member declares data — narrowing eliminated idle/loading/error, so data is provably present."><input type="radio" name="q3" value="narrow"> Discriminant narrowing removed every member without <code>data</code></label>
+      <label data-why="Non-null assertions silence the checker without proving anything — the union design is what actually guarantees presence."><input type="radio" name="q3" value="bang"> Because <code>!</code> asserts it's defined</label>
+      <label data-why="Optional chaining tolerates absence rather than guaranteeing it — and isn't needed here anyway."><input type="radio" name="q3" value="chain"> map works on undefined thanks to <code>?.</code></label>
+    </div>
+
+    <h2 id="recipe">Recipe: typed data fetching</h2>
+    <ol>
+      <li>Interface per API resource, field-for-field as the server sends (no defensive optionals).</li>
+      <li>One <code>getJSON&lt;T&gt;</code>-style wrapper: check <code>res.ok</code>, throw on failure, single <code>as T</code> at the edge.</li>
+      <li>Generic <code>FetchState&lt;T&gt;</code> union — <code>idle / loading / success+data / error+message</code>.</li>
+      <li>Hook wraps the call; guard stale responses with a cancelled flag in cleanup.</li>
+      <li>Components consume via <code>switch (status)</code> — data access only compiles inside <code>"success"</code>.</li>
+      <li>Suspicion the server lies? Reach for zod-style runtime parsing at the same wrapper seam.</li>
+    </ol>
+
+    <div class="lesson-nav">
+      <span><a href="0012-polymorphic-components.html">&larr; Lesson 9: Polymorphic Components</a></span>
+      <span>Next: <a href="0014-exercise-data-fetching.html">Exercise 4</a></span>
+    </div>
+  </div>
+</body>
+</html>
