@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 11: Typed Forms — Zod + React Hook Form</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Lesson 11</span>
+    <h1>Typed Forms — Zod + React Hook Form</h1>
+    <p class="lesson-meta">Prerequisite: Lesson 8 (forms basics), Lesson 7 (utility types)</p>
+
+    <div class="lesson-nav top">
+      <span><a href="0014-exercise-data-fetching.html">&larr; Exercise 4</a></span>
+      <span>Next: <a href="0016-exercise-advanced-forms.html">Exercise 5</a></span>
+    </div>
+
+    <h2 id="schema-is-type">The schema is the type</h2>
+    <p>Lesson 8 left you writing validation by hand — <code>if (typeof name !== "string")</code> per field. Real codebases don't. They declare one schema and derive everything from it. If the schema says <code>email</code> is required, the TypeScript type says so too — no drift, no duplicate interface.</p>
+<pre><code>import { z } from "zod";
+
+const signUpSchema = z.object({
+  name: z.string().min(2, "Name is too short"),
+  email: z.string().email("Invalid email"),
+  age: z.number().min(18, "Must be 18+"),
+  role: z.enum(["admin", "member"]),   // ← union, not bare string
+});
+
+// ONE definition, the type comes for free:
+type SignUpValues = z.infer&lt;typeof signUpSchema&gt;;
+//   ^ { name: string; email: string; age: number; role: "admin" | "member" }</code></pre>
+    <p>Rule: <strong>never</strong> hand-write an interface that mirrors a zod schema. <code>z.infer</code> is the interface. When the schema changes, every consumer updates — no manual sync.</p>
+    <p>Need the <em>input</em> shape (before transforms/coercions) separately? <code>z.input&lt;typeof schema&gt;</code> vs <code>z.output</code>. For most forms without transforms, they're identical and <code>z.infer</code> (which is <code>z.output</code>) is all you need.</p>
+
+    <h2 id="rhf-zod-wiring">Wiring React Hook Form + zodResolver</h2>
+    <p><code>react-hook-form</code> handles state, submission, and re-render optimization. <code>zodResolver</code> is the glue that makes it validate against your schema before <code>handleSubmit</code> ever fires.</p>
+<pre><code>import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+const schema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+});
+
+type Values = z.infer&lt;typeof schema&gt;;
+
+function SignUpForm() {
+  const {
+    register,           // wires an &lt;input&gt; to the form
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm&lt;Values&gt;({
+    resolver: zodResolver(schema),
+    defaultValues: { name: "", email: "" },   // must satisfy Values
+  });
+
+  const onSubmit = (data: Values) =&gt; {
+    // data is VALIDATED — zod already ran; email is a real email here
+    console.log(data);
+  };
+
+  return (
+    &lt;form onSubmit={handleSubmit(onSubmit)}&gt;
+      &lt;input {...register("name")} /&gt;
+      {errors.name &amp;&amp; &lt;p&gt;{errors.name.message}&lt;/p&gt;}
+      &lt;input {...register("email")} /&gt;
+      {errors.email &amp;&amp; &lt;p&gt;{errors.email.message}&lt;/p&gt;}
+      &lt;button disabled={isSubmitting}&gt;Submit&lt;/button&gt;
+    &lt;/form&gt;
+  );
+}</code></pre>
+    <p>What the generics buy you:</p>
+    <ul>
+      <li><code>register("name")</code> — autocomplete for field names, compile error on <code>register("nmae")</code>. The string is typed as <code>Path&lt;Values&gt;</code> (all valid dot-paths into Values).</li>
+      <li><code>handleSubmit(onSubmit)</code> — <code>onSubmit</code> receives <code>Values</code>, not <code>FormData</code>. No <code>formData.get</code> narrowing needed.</li>
+      <li><code>errors</code> is <code>FieldErrors&lt;Values&gt;</code> — each key is optional and carries <code>.message</code> from the schema.</li>
+    </ul>
+    <div class="callout">
+      <strong>Setup note:</strong> install <code>react-hook-form</code>, <code>zod</code>, and <code>@hookform/resolvers</code>. That's it — no extra config. Every codebase using this stack follows the exact wiring above.
+    </div>
+
+    <h2 id="defaults-and-errors">Defaults, numbers, and error shapes</h2>
+    <p>Three things juniors get wrong in week one:</p>
+    <ol>
+      <li><strong>defaultValues must match the schema.</strong> Omit a required field or use the wrong type → compile error immediately. Let the error guide you.</li>
+      <li><strong>Number inputs are strings in the DOM.</strong> Use schema coercion or RHF's value transform — otherwise <code>"42"</code> fails <code>z.number()</code>:</li>
+    </ol>
+<pre><code>// Option A — zod coerces the string for you:
+const schema = z.object({ age: z.coerce.number().min(18) });
+
+// Option B — RHF parses it before validation:
+&lt;input type="number" {...register("age", { valueAsNumber: true })} /&gt;</code></pre>
+    <p>Pick one per field, not both. Coercion in zod is more common because the transform stays with the schema.</p>
+<pre><code>// errors is deeply typed — safe to render per-field:
+{errors.email?.message &amp;&amp; &lt;p role="alert"&gt;{errors.email.message}&lt;/p&gt;}
+//       ^ string | undefined — exactly what &lt;p&gt; wants</code></pre>
+
+    <h2 id="controller">When <code>register</code> isn't enough: Controller</h2>
+    <p><code>register</code> works for native <code>&lt;input&gt;</code>/<code>&lt;select&gt;</code>. For controlled components (a custom <code>&lt;DatePicker&gt;</code>, MUI <code>&lt;Select&gt;</code>, any component that takes <code>value</code>/<code>onChange</code> as props), use <code>Controller</code>:</p>
+<pre><code>import { Controller } from "react-hook-form";
+
+&lt;Controller
+  name="role"                 // still typed as Path&lt;Values&gt;
+  control={control}
+  render={({ field }) =&gt; (
+    &lt;Select
+      value={field.value}
+      onValueChange={field.onChange}
+      onBlur={field.onBlur}
+    /&gt;
+  )}
+/&gt;</code></pre>
+    <p><code>field</code> is typed to the field's value (<code>"admin" | "member"</code> here) — <code>onValueChange</code> can't be called with a stray string. The same <code>Path</code> safety as <code>register</code>, just for controlled UI. How it gets that type:</p>
+<pre><code>// Controller is generic in two slots — you never write them, inference does:
+type ControllerProps&lt;
+  TFieldValues extends FieldValues,          // ← from control={control}  (Control&lt;Values&gt;)
+  TName extends FieldPath&lt;TFieldValues&gt;     // ← from name="role"        (Path&lt;Values&gt;)
+&gt;
+
+&lt;Controller
+  name="role"            // TName = "role"
+  control={control}      // TFieldValues = Values  →  ties the two together
+  render={({ field, fieldState, formState }) =&gt; {
+    // field:      ControllerRenderProps&lt;Values, "role"&gt;
+    // field.value: FieldPathValue&lt;Values, "role"&gt;  →  "admin" | "member"
+    // field.onChange: (...event: any[]) =&gt; void   →  wired to RHF's state
+    // fieldState: { invalid, isDirty, error?: FieldError }
+    // formState:  whole form's state (isSubmitting, etc.)
+    return &lt;Select value={field.value} onValueChange={field.onChange} /&gt;;
+  }}
+/&gt;</code></pre>
+    <p><strong>Yes — <code>render</code> is the render-prop pattern</strong> from <a href="0004-generic-components.html#when-generic">Lesson 4</a> and <a href="reference.html#generics">reference §5</a>. It's the textbook case where hooks alone don't suffice: <code>Controller</code> must <em>own</em> the field lifecycle (registration, validation, value subscription) the way a hook owns logic — but it <em>can't</em> know what JSX you want to wrap (a MUI Select? a custom DatePicker?). The only way to give you the typed <code>field</code> object while letting you choose the UI is to call a function <em>you</em> provide with that object — that's the render prop. Modern rule still holds: prefer hooks by default; this is the narrow survivor where the wrapper genuinely owns rendering around your content. The hook equivalent <code>useController({ name, control })</code> returns the same <code>{ field, fieldState }</code> — use it when you prefer hooks over JSX, but <code>Controller</code>'s <code>render</code> is more ergonomic for inline UI.</p>
+    <div class="callout">
+      <strong>Rule of thumb:</strong> native element → <code>register</code>. Anything with <code>value</code>/<code>onChange</code> props → <code>Controller</code> (or <code>useController</code> if you want the hook form).
+    </div>
+
+    <h2 id="input-vs-output">Input vs output — the transform trap</h2>
+    <p>Most forms submit exactly what the user typed. When a field <em>transforms</em> (e.g. a comma-separated string → string array), the stored type and the submitted type diverge. RHF's <code>useForm</code> has a third generic for that:</p>
+<pre><code>const schema = z.object({
+  tags: z.string().transform(s =&gt; s.split(",").map(t =&gt; t.trim())),
+  // input:  { tags: string }
+  // output: { tags: string[] }
+});
+
+type Input = z.input&lt;typeof schema&gt;;   // what register/watch see
+type Output = z.output&lt;typeof schema&gt;; // what handleSubmit receives
+
+const { register, handleSubmit } = useForm&lt;Input, unknown, Output&gt;({
+  resolver: zodResolver(schema),
+});
+
+const onSubmit = (data: Output) =&gt; {
+  data.tags.map(...)  // tags is string[] here — correctly
+};</code></pre>
+    <p>Without the third generic, <code>data.tags</code> would still be typed as <code>string</code> and <code>.map</code> would be wrong. As a junior you'll hit this rarely — but when a transform exists, this is the one line that makes it type-safe. For the 90% of forms with no transforms, ignore it entirely.</p>
+
+    <h2 id="quiz">Quick Check</h2>
+    <div class="quiz" data-answers='["infer"]'>
+      <p>You already have a zod schema for a form. How should you get its TypeScript type?</p>
+      <label data-why="Writing a separate interface duplicates the schema — when one changes without the other you get silent drift. z.infer keeps one source of truth."><input type="radio" name="q1" value="interface"> Write a matching interface by hand</label>
+      <label data-why="Correct — the schema is the contract; the type flows from it so changes propagate automatically."><input type="radio" name="q1" value="infer"> <code>type Values = z.infer&lt;typeof schema&gt;</code></label>
+      <label data-why="ReturnType extracts a function's return type — nothing to do with schemas."><input type="radio" name="q1" value="returntype"> <code>ReturnType&lt;typeof schema&gt;</code></label>
+    </div>
+
+    <div class="quiz" data-answers='["path"]'>
+      <p>What does <code>register("nmae")</code> do when the schema field is called <code>"name"</code>?</p>
+      <label data-why="Correct — register's argument is typed as Path&lt;Values&gt;, so a typo is a compile error, not a silent runtime miss."><input type="radio" name="q2" value="path"> Compile error — not a valid Path into Values</label>
+      <label data-why="No runtime check needed — the compiler catches it before the code runs."><input type="radio" name="q2" value="runtime"> Compiles but fails validation at submit</label>
+      <label data-why="Register does create an input binding — but only for valid field names."><input type="radio" name="q2" value="silent"> Silently creates an extra field</label>
+    </div>
+
+    <div class="quiz" data-answers='["controller"]'>
+      <p>A custom <code>&lt;DatePicker value={...} onChange={...} /&gt;</code> needs to be in the form. What do you use?</p>
+      <label data-why="Register spreads props onto a native input — it can't drive a controlled component's value/onChange contract."><input type="radio" name="q3" value="register"> <code>register</code> with spread</label>
+      <label data-why="Correct — Controller bridges controlled components into RHF's field lifecycle while preserving per-field types."><input type="radio" name="q3" value="controller"> <code>Controller</code> with <code>render</code></label>
+      <label data-why="useState would bypass the form entirely — no validation, no submit bundling, no error tracking."><input type="radio" name="q3" value="state"> A separate <code>useState</code></label>
+    </div>
+
+    <h2 id="recipe">Recipe: typed forms with Zod + RHF</h2>
+    <ol>
+      <li>Define a zod schema per form — <code>z.object({ ... })</code>. This is the only place field rules live.</li>
+      <li>Derive the type: <code>type Values = z.infer&lt;typeof schema&gt;</code> — never duplicate as an interface.</li>
+      <li>Wire the form: <code>useForm&lt;Values&gt;({ resolver: zodResolver(schema), defaultValues })</code>.</li>
+      <li>Native inputs → <code>{...register("fieldName")}</code>. Controlled components → <code>&lt;Controller name="..." control={control} render={({ field }) =&gt; ...} /&gt;</code>.</li>
+      <li>Number inputs: <code>z.coerce.number()</code> in the schema (prefer) or <code>register("age", { valueAsNumber: true })</code>.</li>
+      <li>Submit: <code>handleSubmit((data: Values) =&gt; ...)</code> — data is already validated, no <code>FormData.get</code> narrowing.</li>
+      <li>Errors: <code>formState.errors</code> is <code>FieldErrors&lt;Values&gt;</code> — render <code>errors.field?.message</code> per field.</li>
+      <li>Transforms? Add the third generic: <code>useForm&lt;Input, unknown, Output&gt;</code> so <code>handleSubmit</code> sees the output type.</li>
+    </ol>
+
+    <div class="lesson-nav">
+      <span><a href="0014-exercise-data-fetching.html">&larr; Exercise 4</a></span>
+      <span>Next: <a href="0016-exercise-advanced-forms.html">Exercise 5</a></span>
+    </div>
+  </div>
+</body>
+</html>

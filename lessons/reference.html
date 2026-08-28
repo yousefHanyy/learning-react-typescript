@@ -31,6 +31,7 @@
         <li><a href="#forms">Forms: three styles compared</a></li>
         <li><a href="#polymorphic">Polymorphic components (<code>as</code> prop)</a></li>
         <li><a href="#fetching">Typing data fetching</a></li>
+      <li><a href="#rhp-forms">Typed forms — Zod + React Hook Form</a></li>
       </ol>
     </nav>
 
@@ -457,6 +458,63 @@ switch (state.status) {
     <p><strong>Why not booleans:</strong> <code>{ isLoading, data?, error? }</code> allows illegal combos (loading AND errored AND data). The union makes them unrepresentable — precedence logic compiles away entirely.</p>
     <p><strong>API shape rule:</strong> type fields exactly as sent — no defensive optionals; genuine API inconsistency belongs to runtime validation, not weakened types.</p>
     <p><em>Sources:</em> <a href="0013-typing-data-fetching.html#any-boundary">Lesson 10 · the any boundary</a>, <a href="0013-typing-data-fetching.html#typed-wrapper">Lesson 10 · wrapper</a>, <a href="0013-typing-data-fetching.html#fetch-hook">Lesson 10 · hook</a></p>
+
+    <!-- ============ ZOD + RHF ============ -->
+    <h2 id="rhp-forms">13. Typed forms — Zod + React Hook Form</h2>
+
+    <h3>Schema is the type</h3>
+<pre><code>const schema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  role: z.enum(["admin", "member"]),
+});
+type Values = z.infer&lt;typeof schema&gt;;   // ONE source of truth — never hand-write the interface
+// z.input&lt;typeof schema&gt; vs z.output — only differ when transforms exist</code></pre>
+
+    <h3>Wiring</h3>
+<pre><code>import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+const { register, handleSubmit, control, formState: { errors } } =
+  useForm&lt;Values&gt;({
+    resolver: zodResolver(schema),
+    defaultValues: { name: "", email: "", role: "member" },
+  });
+
+// submit receives validated Values — no FormData narrowing:
+const onSubmit = (data: Values) =&gt; { /* ... */ };
+&lt;form onSubmit={handleSubmit(onSubmit)}&gt;</code></pre>
+    <ul>
+      <li><code>register("name")</code> is <code>Path&lt;Values&gt;</code> — typo = compile error.</li>
+      <li><code>errors</code> is <code>FieldErrors&lt;Values&gt;</code> — <code>errors.email?.message</code> is string | undefined.</li>
+    </ul>
+
+    <h3>register vs Controller</h3>
+    <table>
+      <tr><th></th><th>Use when</th><th>Example</th></tr>
+      <tr><td><code>register("field")</code></td><td>native <code>&lt;input&gt;</code>/<code>&lt;select&gt;</code></td><td><code>&lt;input {...register("email")} /&gt;</code></td></tr>
+      <tr><td><code>&lt;Controller name="field" control={control} render={({ field }) =&gt; …} /&gt;</code></td><td>controlled component (<code>value</code>/<code>onChange</code> props)</td><td>DatePicker, MUI Select</td></tr>
+    </table>
+    <div class="promoted">
+      <p><strong>Controller typing — how <code>field.value</code> becomes <code>"admin" | "member"</code>:</strong> <code>Controller</code> is generic in <code>TFieldValues</code> (from <code>control: Control&lt;Values&gt;</code>) and <code>TName extends FieldPath&lt;TFieldValues&gt;</code> (from <code>name="role"</code>). They infer to <code>ControllerRenderProps&lt;Values, "role"&gt;</code> where <code>value</code> is <code>FieldPathValue&lt;Values, "role"&gt;</code>. Destructure only what you need: <code>render={({ field }) =&gt; …}</code> for minimal, <code>({ field, fieldState, formState })</code> for full. <code>render</code> IS the render-prop survivor from <a href="0004-generic-components.html#when-generic">Lesson 4</a> — the wrapper must own field lifecycle but can't know your JSX, so it calls your function with the typed field object. Hook alternative: <code>useController({ name, control })</code> returns the same <code>{ field, fieldState }</code>.</p>
+    </div>
+    <div class="promoted">
+      <p><strong>Resolver is a gate:</strong> with <code>zodResolver(schema)</code>, <code>handleSubmit(onSubmit)</code> runs <code>schema.safeParse(values)</code> <em>before</em> <code>onSubmit</code>. Fail → <code>errors</code> populated, callback never called. Pass → callback receives the validated/coerced/transformed output. That's why <code>data: Values</code> needs no <code>FormData.get</code> checks. Default mode is <code>onSubmit</code>; add <code>mode: "onChange"</code> to validate while typing.</p>
+    </div>
+    <div class="promoted">
+      <p><strong>fieldState vs formState — what to read where:</strong> <code>fieldState</code> is per-field (<code>error?: FieldError, invalid, isDirty, isTouched, isValidating</code>) — use inside <code>Controller render</code> for inline messages/borders. <code>formState</code> is whole-form (<code>errors, isDirty, isValid, isSubmitting, isSubmitted, isSubmitSuccessful, dirtyFields, touchedFields, submitCount</code>) — use outside fields. Disable submit at the form level: <code>const { formState: { isSubmitting } } = useForm(...)</code> then <code>&lt;button disabled={isSubmitting}&gt;</code> (destructure — Proxy subscription). Don't put form-wide logic inside a single field's render.</p>
+    </div>
+
+    <h3>Numbers and transforms</h3>
+<pre><code>// number inputs are strings in the DOM — coerce in zod (preferred):
+z.coerce.number().min(18)
+// or: register("age", { valueAsNumber: true }) — pick one, not both
+
+// when a field transforms (string → string[]), handleSubmit's type diverges:
+type Input = z.input&lt;typeof schema&gt;;
+type Output = z.output&lt;typeof schema&gt;;
+useForm&lt;Input, unknown, Output&gt;({ resolver: zodResolver(schema) });</code></pre>
+    <p><em>Sources:</em> <a href="0015-typing-forms-advanced.html#schema-is-type">Lesson 11 · schema is the type</a>, <a href="0015-typing-forms-advanced.html#rhf-zod-wiring">Lesson 11 · wiring</a>, <a href="0015-typing-forms-advanced.html#controller">Lesson 11 · Controller</a>, <a href="0015-typing-forms-advanced.html#input-vs-output">Lesson 11 · transforms</a></p>
 
     <div class="callout">
       <strong>Maintenance note:</strong> this page grows automatically — each new lesson adds its patterns here, and anything you ask about twice gets promoted into the relevant section with extra emphasis.

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exercise 5: Advanced Forms</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/exercise.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Exercise 5</span>
+    <h1>Advanced Forms — Zod + React Hook Form</h1>
+    <p class="lesson-meta">Covers Lesson 11 &middot; ~25 min &middot; bring Lesson 11's recipe</p>
+
+    <div class="lesson-nav top">
+      <span><a href="0015-typing-forms-advanced.html">&larr; Lesson 11: Typed Forms</a></span>
+      <span>Next: <a href="0017-typing-performance.html">Lesson 12: Performance &amp; Memo</a></span>
+    </div>
+
+    <div class="callout">
+      <strong>How to do this:</strong> one schema = one type — if you catch yourself writing an interface that mirrors a schema, stop. Reveal only after you have a compiling answer.
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 1 &middot; The schema IS the type</div>
+      <h3>Fix the drift</h3>
+      <p class="objective">Objective: eliminate a duplicated interface and let <code>z.infer</code> be the single source of truth.</p>
+      <div class="task">
+        This code shipped — then the schema added <code>role</code> and the interface didn't:
+<pre><code>interface SignUpFormValues {
+  name: string;
+  email: string;
+}
+
+const signUpSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  role: z.enum(["admin", "member"]),
+});
+
+// later:
+type Values = SignUpFormValues; // ← bug: missing role, still compiles</code></pre>
+        Fix it: derive the type from the schema, delete the interface, and show what <code>z.infer</code> gives you. What breaks if you keep both?
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>const signUpSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  role: z.enum(["admin", "member"]),
+});
+
+type SignUpValues = z.infer&lt;typeof signUpSchema&gt;;
+//   ^ { name: string; email: string; role: "admin" | "member" }
+
+// delete the interface entirely — it was the drift source</code></pre>
+        <p>Keeping both means every schema change needs a manual interface edit — missed once, the types lie and <code>role</code> is silently <code>undefined</code> at runtime while TS thinks it can't be. One source of truth fixes it forever.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 2 &middot; Wiring</div>
+      <h3>Wire a login form end-to-end</h3>
+      <p class="objective">Objective: <code>useForm</code> + <code>zodResolver</code> with typed <code>register</code> and <code>FieldErrors</code>.</p>
+      <div class="task">
+        Build a login form:
+        <ul>
+          <li>Schema: <code>email</code> (valid email) and <code>password</code> (min 8) — both required</li>
+          <li><code>defaultValues</code> must satisfy the type — make it compile</li>
+          <li>Wire <code>register</code> for both fields; render <code>errors.email?.message</code> per field</li>
+          <li><code>handleSubmit</code> receives validated data — no <code>FormData.get</code></li>
+          <li>Bonus: what happens if you typo <code>register("emial")</code>?</li>
+        </ul>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const loginSchema = z.object({
+  email: z.string().email("Invalid email"),
+  password: z.string().min(8, "At least 8 characters"),
+});
+
+type LoginValues = z.infer&lt;typeof loginSchema&gt;;
+
+function LoginForm() {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm&lt;LoginValues&gt;({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "" },
+  });
+
+  const onSubmit = (data: LoginValues) =&gt; {
+    // data.email is a valid email here — zod already ran
+    console.log(data);
+  };
+
+  return (
+    &lt;form onSubmit={handleSubmit(onSubmit)}&gt;
+      &lt;input {...register("email")} placeholder="email" /&gt;
+      {errors.email &amp;&amp; &lt;p role="alert"&gt;{errors.email.message}&lt;/p&gt;}
+      &lt;input type="password" {...register("password")} /&gt;
+      {errors.password &amp;&amp; &lt;p role="alert"&gt;{errors.password.message}&lt;/p&gt;}
+      &lt;button disabled={isSubmitting}&gt;Log in&lt;/button&gt;
+    &lt;/form&gt;
+  );
+}</code></pre>
+        <p>Bonus: <code>register("emial")</code> is a compile error — the argument is <code>Path&lt;LoginValues&gt;</code>, so only <code>"email" | "password"</code> are allowed. That's the payoff vs stringly-typed <code>formData.get</code>.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 3 &middot; Controller</div>
+      <h3>Wrap a controlled Select</h3>
+      <p class="objective">Objective: decide <code>register</code> vs <code>Controller</code> and type the <code>render</code> prop.</p>
+      <div class="task">
+        Your design system has <code>&lt;RoleSelect value={...} onValueChange={...} /&gt;</code> (controlled, not a native <code>&lt;select&gt;</code>).
+        <ul>
+          <li>Add <code>role: z.enum(["admin","member","viewer"])</code> to the schema from Challenge 2</li>
+          <li>Wire it with <code>Controller</code> — <code>register</code> won't work here, say why</li>
+          <li>In <code>render</code>, destructure <code>{ field, fieldState }</code> and annotate what <code>field.value</code> and <code>fieldState.error</code> are</li>
+        </ul>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>const schema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  role: z.enum(["admin", "member", "viewer"]),
+});
+type Values = z.infer&lt;typeof schema&gt;;
+
+import { Controller } from "react-hook-form";
+
+function Form() {
+  const { control, handleSubmit } = useForm&lt;Values&gt;({
+    resolver: zodResolver(schema),
+    defaultValues: { email: "", password: "", role: "viewer" },
+  });
+
+  return (
+    &lt;form onSubmit={handleSubmit((data) =&gt; console.log(data))}&gt;
+      {/* ...email/password via register... */}
+      &lt;Controller
+        name="role"              // Path&lt;Values&gt; — typo here also fails
+        control={control}        // Control&lt;Values&gt; — ties TFieldValues
+        render={({ field, fieldState }) =&gt; {
+          // field: ControllerRenderProps&lt;Values, "role"&gt;
+          // field.value: "admin" | "member" | "viewer"
+          // fieldState.error?: FieldError
+          return (
+            &lt;RoleSelect
+              value={field.value}
+              onValueChange={field.onChange}
+              onBlur={field.onBlur}
+            /&gt;
+          );
+        }}
+      /&gt;
+    &lt;/form&gt;
+  );
+}</code></pre>
+        <p><code>register</code> spreads props onto a native input — it can't drive a component that owns <code>value</code>/<code>onChange</code>. That's exactly the render-prop survivor case from Lesson 4: the wrapper must own the field lifecycle but can't know your JSX.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 4 &middot; Numbers</div>
+      <h3>The age field that never validates</h3>
+      <p class="objective">Objective: fix the string-in-DOM vs <code>z.number()</code> mismatch.</p>
+      <div class="task">
+        This always fails validation — why? Fix it one way and justify your pick:
+<pre><code>const schema = z.object({ age: z.number().min(18) });
+&lt;input type="number" {...register("age")} /&gt;</code></pre>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+        <p>DOM inputs always emit <code>string</code> — so <code>"22"</code> (string) hits <code>z.number()</code> and fails.</p>
+<pre><code>// Fix A — zod coerces (preferred: transform stays with schema):
+const schema = z.object({ age: z.coerce.number().min(18) });
+&lt;input type="number" {...register("age")} /&gt;
+
+// Fix B — RHF parses before validation:
+&lt;input type="number" {...register("age", { valueAsNumber: true })} /&gt;</code></pre>
+        <p>Pick one, not both. Coercion in zod is the common choice because future consumers of the schema get the same behavior without remembering the register option.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Stretch &middot; Input vs Output</div>
+      <h3>Comma-separated tags → string array</h3>
+      <p class="objective">Objective: the third generic — when <code>handleSubmit</code>'s type must diverge from the inputs.</p>
+      <div class="task">
+        A "tags" field takes <code>"react, typescript, zod"</code> as text but should submit as <code>string[]</code>.
+        <ul>
+          <li>Schema: <code>tags: z.string().transform(s =&gt; s.split(",").map(t =&gt; t.trim()).filter(Boolean))</code></li>
+          <li>Wire <code>useForm</code> so <code>onSubmit</code> receives <code>{ tags: string[] }</code> — not <code>{ tags: string }</code></li>
+          <li>What types do <code>register("tags")</code> and <code>data.tags</code> have respectively?</li>
+        </ul>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>const schema = z.object({
+  tags: z.string().transform(s =&gt; s.split(",").map(t =&gt; t.trim()).filter(Boolean)),
+});
+
+type Input = z.input&lt;typeof schema&gt;;   // { tags: string }
+type Output = z.output&lt;typeof schema&gt;; // { tags: string[] }
+
+const { register, handleSubmit } = useForm&lt;Input, unknown, Output&gt;({
+  resolver: zodResolver(schema),
+  defaultValues: { tags: "" },
+});
+
+const onSubmit = (data: Output) =&gt; {
+  data.tags.map(t =&gt; t.toUpperCase()); // string[] — correct after transform
+};
+
+// register("tags") works on Input  — the raw string in the input
+// data.tags in onSubmit is string[] — the transformed output</code></pre>
+        <p>Without the third generic (<code>Output</code>), <code>data.tags</code> stays typed as <code>string</code> and <code>.map</code> would be an error. This is the one line juniors add <em>only</em> when a transform exists — 90% of forms skip it entirely.</p>
+      </div>
+    </div>
+
+    <p>All done? You now own the form pattern real codebases expect on day one: schema → inferred type → resolver → register/Controller. No <code>FormData.get</code> narrowing, no interface drift.</p>
+
+    <div class="lesson-nav">
+      <span><a href="0015-typing-forms-advanced.html">&larr; Lesson 11: Typed Forms</a></span>
+      <span>Next: <a href="0017-typing-performance.html">Lesson 12: Performance &amp; Memo</a></span>
+    </div>
+  </div>
+</body>
+</html>
