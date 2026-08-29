@@ -32,6 +32,7 @@
         <li><a href="#polymorphic">Polymorphic components (<code>as</code> prop)</a></li>
         <li><a href="#fetching">Typing data fetching</a></li>
       <li><a href="#rhp-forms">Typed forms — Zod + React Hook Form</a></li>
+      <li><a href="#perf-memo">Performance &amp; memo</a></li>
       </ol>
     </nav>
 
@@ -515,6 +516,21 @@ type Input = z.input&lt;typeof schema&gt;;
 type Output = z.output&lt;typeof schema&gt;;
 useForm&lt;Input, unknown, Output&gt;({ resolver: zodResolver(schema) });</code></pre>
     <p><em>Sources:</em> <a href="0015-typing-forms-advanced.html#schema-is-type">Lesson 11 · schema is the type</a>, <a href="0015-typing-forms-advanced.html#rhf-zod-wiring">Lesson 11 · wiring</a>, <a href="0015-typing-forms-advanced.html#controller">Lesson 11 · Controller</a>, <a href="0015-typing-forms-advanced.html#input-vs-output">Lesson 11 · transforms</a></p>
+
+    <!-- ============ PERF & MEMO ============ -->
+    <h2 id="perf-memo">14. Performance &amp; memo</h2>
+<pre><code>// memo — type inferred from component, no special generic needed:
+const Row = memo(function Row({ user, onSelect }: RowProps) { ... });
+
+// useMemo / useCallback — inferred from factory:
+const visible = useMemo(() =&gt; users.filter(u =&gt; u.role === filter), [users, filter]);
+const handleSelect = useCallback((id: string) =&gt; setSelected(id), []);
+const handleChange = useCallback&lt;React.ChangeEventHandler&lt;HTMLInputElement&gt;&gt;(
+  e =&gt; setValue(e.currentTarget.value), []
+);</code></pre>
+    <p><strong>When memo helps:</strong> profiler shows slowness AND props are stable (objects via <code>useMemo</code>, functions via <code>useCallback</code>) AND child is expensive/many. Otherwise you pay comparison cost and still render — new object/function each render defeats shallow compare.</p>
+    <p><strong>Junior rule:</strong> don't memo until measured. Prefer correct deps and primitives over memo.</p>
+    <p><em>Sources:</em> <a href="0017-typing-performance.html#memo-typing">Lesson 12 · memo</a>, <a href="0017-typing-performance.html#usememo">Lesson 12 · useMemo</a>, <a href="0017-typing-performance.html#usecallback">Lesson 12 · useCallback</a></p>
 
     <div class="callout">
       <strong>Maintenance note:</strong> this page grows automatically — each new lesson adds its patterns here, and anything you ask about twice gets promoted into the relevant section with extra emphasis.

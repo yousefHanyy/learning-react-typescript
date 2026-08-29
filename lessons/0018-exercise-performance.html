@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exercise 6: Performance &amp; Memo</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/exercise.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Exercise 6</span>
+    <h1>Performance &amp; Memo</h1>
+    <p class="lesson-meta">Covers Lesson 12 &middot; ~20 min</p>
+
+    <div class="lesson-nav top">
+      <span><a href="0017-typing-performance.html">&larr; Lesson 12: Performance &amp; Memo</a></span>
+      <span>Next: <a href="0019-typing-testing.html">Lesson 13: Testing Typed Components</a></span>
+    </div>
+
+    <div class="callout">
+      <strong>How to do this:</strong> for each challenge, name <em>whether memo can bail out</em> before looking. The checklist is the answer key.
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 1 · Spot the useless memo</div>
+      <h3>Why does this memoized list still jank?</h3>
+      <p class="objective">Objective: apply the shallow-compare rule.</p>
+      <div class="task">
+<pre><code>const Row = memo(function Row({ user, onSelect }: RowProps) {
+  return &lt;li onClick={() =&gt; onSelect(user.id)}&gt;{user.name}&lt;/li&gt;;
+});
+
+function List({ users }: { users: User[] }) {
+  return (
+    &lt;ul&gt;
+      {users.map(u =&gt; (
+        &lt;Row key={u.id} user={u} onSelect={(id) =&gt; console.log(id)} /&gt;
+      ))}
+    &lt;/ul&gt;
+  );
+}</code></pre>
+        The profiler shows <code>List</code> re-rendering 60fps and every <code>Row</code> along with it despite <code>memo</code>. Name the two stable-props violations and what memo actually does here (hint: cost without benefit).
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+        <ul>
+          <li><code>onSelect={(id) =&gt; console.log(id)}</code> — new arrow <em>every</em> <code>List</code> render → new function reference → <code>prevProps.onSelect !== nextProps.onSelect</code> → bail-out fails for every Row.</li>
+          <li>If <code>users</code> itself is a new array each render (e.g. <code>users={data.map(...)}</code> inline in parent), then <code>user={u}</code> is also a new object per row even when data is equal.</li>
+        </ul>
+        <p>Result: <code>memo</code> shallow-compares props, fails, and still renders — you pay the comparison cost <em>and</em> the render. Juniors add memo for speed and get slower.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 2 · Fix it</div>
+      <h3>Make memo actually bail out</h3>
+      <p class="objective">Objective: stabilize object + function props.</p>
+      <div class="task">
+        Fix Challenge 1 so <code>Row</code> can skip when <code>users</code> haven't changed. Requirements:
+        <ul>
+          <li><code>onSelect</code> must be stable across renders</li>
+          <li><code>users</code> filtering (if any) must be stable — show where <code>useMemo</code> belongs</li>
+          <li>Keep types inferred — no extra generics</li>
+        </ul>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>function List({ users }: { users: User[] }) {
+  const handleSelect = useCallback((id: string) =&gt; {
+    console.log(id);
+  }, []); // stable — no deps that change per render
+
+  // if filtering/sorting, memo the derived array itself:
+  const visibleUsers = useMemo(
+    () =&gt; users.filter(u =&gt; u.active),
+    [users]
+  );
+
+  return (
+    &lt;ul&gt;
+      {visibleUsers.map(u =&gt; (
+        &lt;Row key={u.id} user={u} onSelect={handleSelect} /&gt;
+      ))}
+    &lt;/ul&gt;
+  );
+}</code></pre>
+        <p>Now <code>prevProps.onSelect === nextProps.onSelect</code> and <code>prevProps.user === nextProps.user</code> (same object from stable array) — shallow compare succeeds and inactive rows skip.</p>
+        <p>Common mistake: memoizing the list but still passing <code>onSelect={() =&gt; ...}</code> inline — one unstable prop defeats the whole optimization.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 3 · Typing</div>
+      <h3>Type the hooks without over-annotating</h3>
+      <p class="objective">Objective: inferred vs explicit handler typing.</p>
+      <div class="task">
+        For each, say what TypeScript infers and when you'd add an explicit type:
+        <ol>
+          <li><code>const visible = useMemo(() =&gt; users.filter(u =&gt; u.active), [users])</code></li>
+          <li><code>const handleChange = useCallback((e) =&gt; setValue(e.currentTarget.value), [])</code> — passed as <code>onChange</code> to a typed <code>&lt;input&gt;</code></li>
+          <li><code>const next = useMemo(() =&gt; found ? found.name : null, [found])</code></li>
+        </ol>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+        <ol>
+          <li><code>visible: User[]</code> — inferred from <code>filter</code>'s return. No generic needed.</li>
+          <li><code>(e: any) =&gt; void</code> inferred as untyped param — <code>e.currentTarget</code> is <code>any</code>. Fix with explicit handler type:
+<pre><code>const handleChange = useCallback&lt;React.ChangeEventHandler&lt;HTMLInputElement&gt;&gt;(
+  e =&gt; setValue(e.currentTarget.value),
+  []
+);</code></pre>
+          Now <code>e.currentTarget.value</code> is <code>string</code> and mismatched handlers don't compile.</li>
+          <li><code>string | null</code> — inferred, but if <code>found</code> is <code>User | undefined</code>, inference may widen to <code>string | null | undefined</code>. Pin it when needed:
+<pre><code>const next = useMemo&lt;string | null&gt;(() =&gt; found ? found.name : null, [found]);</code></pre>
+          Rule: infer by default, annotate only when the factory's branches make the type ambiguous.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 4 · Judgment</div>
+      <h3>Memo or not?</h3>
+      <p class="objective">Objective: the checklist from the lesson.</p>
+      <div class="task">
+        For each, say <strong>memo / don't memo</strong> and which checklist item decides it:
+        <ol>
+          <li>A single <code>&lt;Header&gt;</code> with two strings as props, rendering once per page</li>
+          <li>A 500-row virtualized table where rows are pure and props are stable</li>
+          <li>A form <code>&lt;Input&gt;</code> that receives <code>style={{ marginBottom: 8 }}</code> inline</li>
+          <li>A chart that runs a 50ms filter on 10k points — profiler shows jank on every keystroke</li>
+        </ol>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+        <ol>
+          <li><strong>Don't memo</strong> — not expensive/many (checklist item 3). Cost &gt; benefit.</li>
+          <li><strong>Memo</strong> — measured? yes (many), stable? yes (by design), expensive/many? yes (500). All three pass.</li>
+          <li><strong>Don't memo</strong> (or fix props) — fails checklist item 2: inline <code>{{ marginBottom: 8 }}</code> is a new object each render, so memo never bails out. Fix with <code>useMemo</code> or extract constant, <em>then</em> memo helps.</li>
+          <li><strong>Memo the value, not necessarily the component</strong> — <code>useMemo(() =&gt; heavyFilter(data), [data])</code> caches the 50ms work. Memoizing the chart component alone still recomputes the filter if the prop array is new.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Stretch · The inline trap, quantified</div>
+      <h3>Prove it to yourself</h3>
+      <p class="objective">Objective: see the reference vs deep-equality gap in devtools.</p>
+      <div class="task">
+        Add a <code>console.log("Row render", user.id)</code> inside a <code>memo(Row)</code>, then toggle between:
+        <ul>
+          <li><code>&lt;Row config={{ theme: "light" }} /&gt;</code> (inline)</li>
+          <li><code>const config = useMemo(() =&gt; ({ theme: "light" as const }), []); &lt;Row config={config} /&gt;</code></li>
+        </ul>
+        Trigger a parent re-render (e.g. unrelated counter). Count renders in each case. Why does case 1 log every time while case 2 stays silent?
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+        <p>Case 1 allocates a new <code>{ theme: "light" }</code> each parent render → <code>prevConfig !== nextConfig</code> → memo bails out never → log every time. Case 2 returns the <em>same reference</em> → <code>prevConfig === nextConfig</code> → memo skips → silent. This is referential identity, not deep equality — the single most common performance bug juniors ship.</p>
+      </div>
+    </div>
+
+    <p>Done? The takeaway is negative: the skill is knowing when <em>not</em> to memo. Default to no memo, measure, then stabilize only the props that break the bail-out.</p>
+
+    <div class="lesson-nav">
+      <span><a href="0017-typing-performance.html">&larr; Lesson 12: Performance &amp; Memo</a></span>
+      <span>Next: <a href="0019-typing-testing.html">Lesson 13: Testing Typed Components</a></span>
+    </div>
+  </div>
+</body>
+</html>

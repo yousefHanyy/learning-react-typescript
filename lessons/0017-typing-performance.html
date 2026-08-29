@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 12: Performance &amp; Memo — When Types Save You From Yourself</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Lesson 12</span>
+    <h1>Performance &amp; Memo — When Types Save You From Yourself</h1>
+    <p class="lesson-meta">Prerequisite: Lessons 1, 6 (props, utility types)</p>
+
+    <div class="lesson-nav top">
+      <span><a href="0016-exercise-advanced-forms.html">&larr; Exercise 5</a></span>
+      <span>Next: <a href="0018-exercise-performance.html">Exercise 6</a></span>
+    </div>
+
+    <h2 id="why-memo-exists">Why memo exists (and why juniors overuse it)</h2>
+    <p>React re-renders a component when its parent re-renders — even if props didn't change. <code>memo</code> is a bail-out: "skip rendering if props are shallow-equal to last time."</p>
+    <p>As a junior you'll see it sprinkled everywhere. Most of it is wasted — or harmful. Memo has a cost (comparison + memory), and if props are <em>new objects every render</em> (which they are by default), it never bails out anyway. You pay to compare and still render.</p>
+    <div class="callout">
+      <strong>Rule you can quote at work:</strong> don't memo until a measured problem exists. Profiler says this list is slow → memo the row. Not before.
+    </div>
+
+    <h2 id="memo-typing">Typing <code>memo</code></h2>
+    <p><code>memo</code> needs no special generic — it infers from the component you pass:</p>
+<pre><code>import { memo } from "react";
+
+interface RowProps {
+  user: User;
+  onSelect: (id: string) =&gt; void;
+}
+
+// Both equivalent — pick one style per codebase:
+const Row = memo(function Row({ user, onSelect }: RowProps) {
+  return &lt;li onClick={() =&gt; onSelect(user.id)}&gt;{user.name}&lt;/li&gt;;
+});
+
+// or with explicit generic (rare — only when inference needs help):
+const Row2 = memo&lt;RowProps&gt;(function Row2(props) { ... });</code></pre>
+    <p>Types don't change. What changes is <em>whether memo helps</em> — that's about referential stability, which is where the next two hooks come in.</p>
+
+    <h2 id="usememo">useMemo — memoizing a value</h2>
+    <p><code>useMemo</code> caches a <em>value</em> between renders. Its type is inferred from the factory's return:</p>
+<pre><code>// type inferred as User[] — no generic needed
+const visibleUsers = useMemo(
+  () =&gt; users.filter(u =&gt; u.role === filter),
+  [users, filter]
+);
+
+// only annotate when the factory could return different shapes:
+const result = useMemo&lt;string | null&gt;(() =&gt; {
+  return found ? found.name : null;
+}, [found]);</code></pre>
+    <div class="callout">
+      <strong>Gotcha:</strong> <code>useMemo(() =&gt; ({ a: 1 }), [])</code> gives you a stable <code>{ a: 1 }</code> — but <code>({ a: 1 })</code> inline in JSX is a new object every render. If that object is a memo'd child's prop, the child re-renders despite being memoized. Stable values must come from <code>useMemo</code> (or <code>useState</code>).
+    </div>
+
+    <h2 id="usecallback">useCallback — memoizing a function</h2>
+    <p><code>useCallback</code> caches a <em>function identity</em>. Same inference story — plus the dependency array is where juniors actually introduce bugs:</p>
+<pre><code>const handleSelect = useCallback((id: string) =&gt; {
+  setSelectedId(id);
+}, [setSelectedId]); // setSelectedId is stable (from useState) — safe dep
+
+// typing the handler explicitly when needed (e.g. passing to a typed prop):
+const handleChange = useCallback&lt;React.ChangeEventHandler&lt;HTMLInputElement&gt;&gt;(
+  (e) =&gt; setValue(e.currentTarget.value),
+  []
+);</code></pre>
+    <p>Why this matters for <code>memo</code>: a <code>memo(Row)</code> that receives <code>onSelect={handleSelect}</code> only skips when <code>handleSelect</code> is the same reference. Without <code>useCallback</code>, it's a new function every parent render → memo never bails out.</p>
+
+    <h2 id="when-it-actually-helps">When it actually helps — the checklist</h2>
+    <ol>
+      <li><strong>Measured slowness.</strong> Profiler or visible jank, not "might be slow."</li>
+      <li><strong>Stable props.</strong> Use <code>useMemo</code>/<code>useCallback</code> for every object/function prop the memo'd child receives — otherwise the shallow compare fails.</li>
+      <li><strong>Child is expensive or many.</strong> Memo'ing a single cheap <code>&lt;div&gt;</code> saves nothing. Memo'ing 500 rows does.</li>
+    </ol>
+<pre><code>// The only pattern worth memorizing:
+const Row = memo(function Row({ user, onSelect }: RowProps) { ... });
+
+function List({ users }: { users: User[] }) {
+  const handleSelect = useCallback((id: string) =&gt; { ... }, []);
+  // visibleUsers stable → Row's user prop stable per item
+  const visibleUsers = useMemo(() =&gt; users.filter(...), [users]);
+
+  return visibleUsers.map(u =&gt; (
+    &lt;Row key={u.id} user={u} onSelect={handleSelect} /&gt;
+  ));
+}</code></pre>
+    <p>Skip all three until the checklist is met. Your reviewer will thank you.</p>
+
+    <h2 id="quiz">Quick Check</h2>
+    <div class="quiz" data-answers='["never"]'>
+      <p>A parent passes <code>onSelect={() =&gt; setSelected(id)}</code> (new arrow each render) to <code>memo(Row)</code>. How often does memo bail out?</p>
+      <label data-why="A new function is a new reference — shallow compare fails every render; memo pays comparison cost and still renders."><input type="radio" name="q1" value="never"> Never — new function reference every render defeats the shallow compare</label>
+      <label data-why="Memo doesn't deep-compare functions; reference equality is the whole check."><input type="radio" name="q1" value="sometimes"> Sometimes, when the function body is identical</label>
+      <label data-why="Memo would need a stable reference to bail out — an inline arrow gives it no chance."><input type="radio" name="q1" value="always"> Always — memo deep-compares props</label>
+    </div>
+
+    <div class="quiz" data-answers='["usecallback"]'>
+      <p>What makes that <code>memo(Row)</code> actually bail out?</p>
+      <label data-why="useMemo caches values, not function identity — Row's onSelect needs a stable function."><input type="radio" name="q2" value="usememo"> Wrap the list with <code>useMemo</code></label>
+      <label data-why="Correct — useCallback gives Row a stable onSelect reference, so shallow compare can succeed."><input type="radio" name="q2" value="usecallback"> Wrap <code>onSelect</code> with <code>useCallback</code> (and useMemo for object props)</label>
+      <label data-why="useState holds component state — not the tool for stable callbacks."><input type="radio" name="q2" value="usestate"> Store the callback in <code>useState</code></label>
+    </div>
+
+    <div class="quiz" data-answers='["inferred"]'>
+      <p>How do you typically type <code>useMemo</code> / <code>useCallback</code>?</p>
+      <label data-why="Correct — the factory's return type is inferred; annotate only when it could return multiple shapes."><input type="radio" name="q3" value="inferred"> Inferred from the factory — annotate only for ambiguous returns</label>
+      <label data-why="There's no &lt;Props&gt; generic on these hooks — type flows from the function you pass."><input type="radio" name="q3" value="generic"> Always pass a generic like <code>useMemo&lt;RowProps&gt;</code></label>
+      <label data-why="Dependencies affect when it re-runs, not what type it returns."><input type="radio" name="q3" value="deps"> Type comes from the dependency array</label>
+    </div>
+
+    <h2 id="recipe">Recipe: memo &amp; friends</h2>
+    <ol>
+      <li>Don't memo until the profiler says to. Most components are cheap.</li>
+      <li>Wrap the child: <code>const Row = memo(function Row(props: RowProps) { ... })</code> — types inferred.</li>
+      <li>Stabilize object props with <code>useMemo(() =&gt; ..., [deps])</code>; type inferred.</li>
+      <li>Stabilize function props with <code>useCallback(fn, [deps])</code>; type inferred, or <code>useCallback&lt;HandlerType&gt;(fn, [deps])</code> when you need an explicit handler type.</li>
+      <li>Verify: if any prop is still a new object/function each render, memo can't bail out — you just added cost.</li>
+      <li>Prefer stable primitives and correct dep arrays over memo — memo is the last resort, not the first.</li>
+    </ol>
+
+    <div class="lesson-nav">
+      <span><a href="0016-exercise-advanced-forms.html">&larr; Exercise 5</a></span>
+      <span>Next: <a href="0018-exercise-performance.html">Exercise 6</a></span>
+    </div>
+  </div>
+</body>
+</html>
