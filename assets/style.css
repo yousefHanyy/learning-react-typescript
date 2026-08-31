@@ -338,6 +338,26 @@ dd {
   background: var(--accent-light);
 }
 
+.site-nav {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.site-tabs { display: flex; gap: 0.5rem; }
+.site-tab {
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+.site-tab:hover { background: var(--accent-light); color: var(--text); text-decoration: none; }
+.site-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
 #back-to-top {
   position: fixed;
   bottom: 1.5rem;

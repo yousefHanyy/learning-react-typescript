@@ -55,3 +55,5 @@
 - Session 33 (2026-07-22): Exercise 7 covering 13a+13b (first vi.fn spy, query priority refactor, real provider wrapper vs mock, mock boundary api.getJSON with findBy, stretch: zod async form with waitFor); Lesson 14 pre-linked as 0022-typing-advanced.html
 - Session 34 (2026-07-22): Lesson 14 on advanced TS patterns (satisfies vs as, as const literal unions, branded UserId/PostId nominal typing, unknown narrowing vs any with zod, never exhaustiveness); reference §16 added
 - Session 35 (2026-07-22): Exercise 8 covering Lesson 14 (satisfies typo check, as const Role union + readonly spread, branded UserId/PostId helpers, unknown narrowing manual vs zod + catch unknown, stretch: validated + branded API parse)
+- Session 36 (2026-07-22): Added site-nav (Lessons/Reference/Glossary tabs) to all pages, back-to-top arrow &#8593; centered, site-nav fix to point Lessons → lessons/index.html with active state
+- Session 37 (2026-07-22): Created lessons/index.html hub (all 24 page names grouped by track) — navigable via navbar Lessons tab with active effect on lessons page
