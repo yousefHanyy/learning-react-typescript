@@ -35,6 +35,7 @@
       <li><a href="#rhp-forms">Typed forms — Zod + React Hook Form</a></li>
       <li><a href="#perf-memo">Performance &amp; memo</a></li>
       <li><a href="#testing">Testing typed components</a></li>
+      <li><a href="#advanced">Advanced TS patterns</a></li>
       </ol>
     </nav>
 
@@ -692,6 +693,27 @@ act(() =&gt; { result.current.increment(); });
 const onSave = vi.fn&lt;(n: number) =&gt; void&gt;();
 vi.mock("../api", () =&gt; ({ getJSON: vi.fn(async () =&gt; [{ id: "1" }]) }));</code></pre>
     <p><em>Sources:</em> <a href="0019-typing-testing.html#setup">Lesson 13a · setup</a>, <a href="0019-typing-testing.html#queries">Lesson 13a · queries</a>, <a href="0019-typing-testing.html#vi-fn">Lesson 13a · vi.fn</a>, <a href="0020-typing-testing-mocks.html#context">Lesson 13b · context</a>, <a href="0020-typing-testing-mocks.html#hooks-async">Lesson 13b · hooks &amp; async</a></p>
+
+    <!-- ============ ADVANCED ============ -->
+    <h2 id="advanced">16. Advanced TS patterns</h2>
+<pre><code>// satisfies — check shape, keep literals:
+const theme = { primary: "#000", secondary: "#fff" } satisfies Theme;
+type Primary = typeof theme.primary; // "#000"
+
+// as const — readonly literals:
+const ROLES = ["admin", "member"] as const;
+type Role = typeof ROLES[number]; // "admin" | "member"
+
+// branded IDs — nominal typing, zero runtime:
+type UserId = string &amp; { readonly __brand: "UserId" };
+type PostId = string &amp; { readonly __brand: "PostId" };
+function toUserId(raw: string): UserId { return raw as UserId; }
+getUser(pid); // ❌ PostId not assignable to UserId
+
+// unknown — must narrow before use:
+const data: unknown = JSON.parse(raw);
+if (parsed.success) parsed.data.email; // zod narrows unknown → Values</code></pre>
+    <p><em>Sources:</em> <a href="0022-typing-advanced.html#satisfies">Lesson 14 · satisfies</a>, <a href="0022-typing-advanced.html#as-const">Lesson 14 · as const</a>, <a href="0022-typing-advanced.html#branded">Lesson 14 · branded</a>, <a href="0022-typing-advanced.html#unknown">Lesson 14 · unknown</a></p>
 
     <div class="callout">
       <strong>Maintenance note:</strong> this page grows automatically — each new lesson adds its patterns here, and anything you ask about twice gets promoted into the relevant section with extra emphasis.

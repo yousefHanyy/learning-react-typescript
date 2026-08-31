@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 14: Advanced TypeScript Patterns</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Lesson 14</span>
+    <h1>Advanced TypeScript You See at Work</h1>
+    <p class="lesson-meta"><code>satisfies</code> &middot; <code>as const</code> &middot; branded types &middot; narrowing <code>unknown</code></p>
+
+    <div class="lesson-nav top">
+      <span><a href="0021-exercise-testing.html">&larr; Exercise 7</a></span>
+      <span>Next: <a href="0023-exercise-advanced.html">Exercise 8</a></span>
+    </div>
+
+    <div class="callout">
+      <strong>The gap after Lesson 13:</strong> you can type props, generics, and tests — but real codebases have three gotchas you haven't seen yet: configs that lie about their literals, IDs that are all <code>string</code> but shouldn't mix, and <code>unknown</code> coming from <code>JSON.parse</code> that <code>any</code> would silently accept. Three small tools fix all three.
+    </div>
+
+    <h2 id="satisfies">satisfies — the safe <code>as</code></h2>
+    <p>You've seen <code>as T</code> in the <code>getJSON</code> boundary (Lesson 10) — one sanctioned lie. Everywhere else, <code>as</code> hides mistakes:</p>
+<pre><code>type Theme = { primary: string; secondary: string };
+
+// ❌ as — lies, no error even though "secondry" is a typo:
+const theme1 = { primary: "#000", secondry: "#fff" } as Theme;
+
+// ✅ satisfies — checks the shape AND keeps literal types:
+const theme2 = { primary: "#000", secondary: "#fff" } satisfies Theme;
+type Primary = typeof theme2.primary; // "#000" — literal kept!
+
+// also catches extra keys — useful for config maps:
+const routes = {
+  home: "/",
+  dashboard: "/dashboard",
+  typo: "/dashbord", // if Theme expected it, satisfies would flag it
+} satisfies Record&lt;string, string&gt;;</code></pre>
+    <div class="callout">
+      <strong>Rule:</strong> <code>as</code> tells the compiler "trust me" (narrows or widens silently). <code>satisfies</code> says "check me, but don't widen me" — the type is validated, literals stay literal, and autocomplete still works.
+    </div>
+    <p><strong>When to use:</strong> config objects, route maps, theme tokens, any object where you want both validation <em>and</em> literal inference.</p>
+
+    <h2 id="as-const">as const — literals that stay literal</h2>
+<pre><code>// without as const — widened, typo in filter compiles:
+const ROLES = ["admin", "member", "viewer"];
+ROLES.includes("adimn"); // no error — ROLES is string[]
+
+// with as const — readonly tuple of literals:
+const ROLES2 = ["admin", "member", "viewer"] as const;
+type Role = typeof ROLES2[number]; // "admin" | "member" | "viewer"
+ROLES2.includes("adimn"); // ❌ compile error — "adimn" not assignable</code></pre>
+    <p>Same move for objects — makes every property <code>readonly</code> and literal:</p>
+<pre><code>const CONFIG = {
+  apiUrl: "https://api.example.com",
+  retries: 3,
+} as const;
+CONFIG.retries = 5; // ❌ Cannot assign to 'retries' because it is a read-only property</code></pre>
+    <p><strong>Gotcha:</strong> <code>as const</code> makes the whole thing deeply <code>readonly</code>. If a library expects <code>string[]</code> (mutable), pass <code>[...ROLES2]</code> or type the param as <code>readonly string[]</code>.</p>
+
+    <h2 id="branded">Branded types — stop mixing IDs</h2>
+    <p>Every ID is <code>string</code> — but <code>UserId</code> and <code>PostId</code> should never mix. TypeScript is structural, so without help they're compatible:</p>
+<pre><code>function getUser(id: string) {}
+function getPost(id: string) {}
+getUser("post_123"); // compiles — wrong!
+
+// Branded (nominal) IDs — same runtime, different types:
+type UserId = string &amp; { readonly __brand: "UserId" };
+type PostId = string &amp; { readonly __brand: "PostId" };
+
+function getUser2(id: UserId) {}
+function getPost2(id: PostId) {}
+
+declare const uid: UserId;
+declare const pid: PostId;
+getUser2(pid); // ❌ Type 'PostId' is not assignable to 'UserId'
+getUser2(uid); // ✅
+
+// helpers — one place where the cast lives:
+function toUserId(raw: string): UserId { return raw as UserId; }
+function toPostId(raw: string): PostId { return raw as PostId; }</code></pre>
+    <div class="callout">
+      <strong>Real-world use:</strong> design systems and backends brand <code>UserId</code>, <code>OrderId</code>, <code>Currency</code> strings — catches copy-paste bugs where you pass the wrong ID to an API. Zero runtime cost.
+    </div>
+
+    <h2 id="unknown">Narrowing <code>unknown</code> — the honest <code>any</code></h2>
+    <p><code>any</code> disables checks. <code>unknown</code> forces you to narrow before use — exactly what you want at boundaries (<code>JSON.parse</code>, <code>catch (e)</code>, <code>postMessage</code>):</p>
+<pre><code>// ❌ any — typo compiles, crashes at runtime:
+const data: any = JSON.parse(raw);
+data.emial; // no error — any
+
+// ✅ unknown — must narrow before access:
+const data2: unknown = JSON.parse(raw);
+if (typeof data2 === "object" &amp;&amp; data2 !== null &amp;&amp; "email" in data2
+    &amp;&amp; typeof (data2 as any).email === "string") {
+  console.log((data2 as { email: string }).email);
+}
+
+// in practice — zod does the narrowing for you (Lesson 11):
+const parsed = schema.safeParse(JSON.parse(raw)); // unknown → validated Values
+if (parsed.success) {
+  parsed.data.email; // ✅ typed, validated
+}</code></pre>
+    <p><strong>The line:</strong> <code>catch (e: unknown)</code> — not <code>any</code> — then <code>if (e instanceof Error) e.message</code>. Same pattern as <code>FetchState</code> narrowing from Lesson 10.</p>
+    <p><strong>never's job:</strong> the exhaustiveness guard (<code>const _exhaustive: never = action</code> from Lesson 7) and impossible branches — if a value is <code>never</code>, that code is unreachable.</p>
+
+    <h2 id="quiz">Quick Check</h2>
+    <div class="quiz" data-answers='["satisfies"]'>
+      <p>Config object should be checked against <code>Theme</code> but keep <code>"#000"</code> as a literal. Which?</p>
+      <label data-why="as tells the compiler to trust you — typos like secondry slip through and literals widen to string."><input type="radio" name="q1" value="as"> <code>const t = { primary: &quot;#000&quot; } as Theme</code></label>
+      <label data-why="Correct — satisfies validates the shape and preserves literal types for autocomplete and narrowing."><input type="radio" name="q1" value="satisfies"> <code>const t = { primary: &quot;#000&quot; } satisfies Theme</code></label>
+      <label data-why="No assertion means no check — a missing secondary wouldn't be flagged."><input type="radio" name="q1" value="none"> No assertion</label>
+    </div>
+
+    <div class="quiz" data-answers='["branded"]'>
+      <p><code>getUser(id: string)</code> accepts a <code>PostId</code> by mistake. Fix?</p>
+      <label data-why="Still string — structural typing says they're compatible."><input type="radio" name="q2" value="alias"> <code>type UserId = string</code></label>
+      <label data-why="Correct — intersection with a phantom brand makes them incompatible with zero runtime cost."><input type="radio" name="q2" value="branded"> <code>type UserId = string &amp; { readonly __brand: &quot;UserId&quot; }</code></label>
+      <label data-why="Enums are for closed sets, not for tagging every string ID."><input type="radio" name="q2" value="enum"> <code>enum UserId { }</code></label>
+    </div>
+
+    <div class="quiz" data-answers='["unknown"]'>
+      <p>Value from <code>JSON.parse</code> — which type forces you to check before use?</p>
+      <label data-why="any disables checks — data.emial would compile."><input type="radio" name="q3" value="any"> <code>any</code></label>
+      <label data-why="Correct — unknown requires narrowing (typeof / instanceof / zod) before property access."><input type="radio" name="q3" value="unknown"> <code>unknown</code></label>
+      <label data-why="never means unreachable — not a value you can receive."><input type="radio" name="q3" value="never"> <code>never</code></label>
+    </div>
+
+    <h2 id="recipe">Recipe: advanced patterns at work</h2>
+    <ol>
+      <li>Config/route maps: <code>const x = { ... } satisfies Expected</code> — validates without widening.</li>
+      <li>Literal unions from arrays: <code>const ROLES = [...] as const; type Role = typeof ROLES[number]</code>.</li>
+      <li>IDs that shouldn't mix: <code>type UserId = string &amp; { readonly __brand: "UserId" }</code> + <code>toUserId(raw)</code> helper.</li>
+      <li>Boundaries: type as <code>unknown</code> first (<code>JSON.parse</code>, <code>catch (e)</code>), narrow with <code>typeof</code>/<code>instanceof</code> or <code>zod.safeParse</code>.</li>
+      <li>Need an exhaustive check: <code>const _exhaustive: never = action</code> in default.</li>
+    </ol>
+
+    <div class="lesson-nav">
+      <span><a href="0021-exercise-testing.html">&larr; Exercise 7</a></span>
+      <span>Next: <a href="0023-exercise-advanced.html">Exercise 8</a></span>
+    </div>
+  </div>
+</body>
+</html>

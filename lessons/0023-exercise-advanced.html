@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exercise 8: Advanced TypeScript Patterns</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/exercise.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Exercise 8</span>
+    <h1>Advanced TypeScript Patterns</h1>
+    <p class="lesson-meta">Covers Lesson 14 &middot; ~25 min &middot; satisfies · as const · branded · unknown</p>
+
+    <div class="lesson-nav top">
+      <span><a href="0022-typing-advanced.html">&larr; Lesson 14: Advanced TS Patterns</a></span>
+      <span>Next: <a href="reference.html">Reference</a></span>
+    </div>
+
+    <div class="callout">
+      <strong>How to do this:</strong> try to break the code first — make TS error on the typo/wrong ID, then fix. Reveal only after your fix compiles.
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 1 · satisfies vs as</div>
+      <h3>Catch the typo without losing literals</h3>
+      <p class="objective">Objective: `satisfies` validates and keeps `"#000"` literal; `as` hides the bug.</p>
+      <div class="task">
+<pre><code>type Theme = { primary: string; secondary: string };
+
+// ❌ hides typo — compiles:
+const theme1 = { primary: "#000", secondry: "#fff" } as Theme;
+
+// your turn — rewrite so the typo is a compile error
+// AND typeof theme.primary is "#000" (not string):
+const theme2 = { primary: "#000", secondary: "#fff" } // ??? Theme</code></pre>
+        Fix `theme2` and explain why `theme1` is the wrong answer even though it compiles.
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>const theme2 = { primary: "#000", secondary: "#fff" } satisfies Theme;
+type Primary = typeof theme2.primary; // "#000" — literal kept
+// theme2 = { primary: "#000", secondry: "#fff" } satisfies Theme
+//                          ^^^^^^^^ ❌ Did you mean "secondary"? — error here
+
+// why theme1 is wrong:
+// as Theme says "trust me, this IS Theme" — TS stops checking excess/misspelled keys
+// and widens "#000" to string, so you lose autocomplete + literal narrowing.</code></pre>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 2 · as const</div>
+      <h3>Roles that catch typos</h3>
+      <p class="objective">Objective: `as const` + `typeof ROLES[number]` to get a union that rejects `"adimn"`.</p>
+      <div class="task">
+<pre><code>const ROLES = ["admin", "member", "viewer"];
+function hasAccess(role: string) { return ROLES.includes(role); }
+hasAccess("adimn"); // no error — should be!
+
+// make ROLES reject typos and derive the union:
+type Role = ??? // "admin" | "member" | "viewer"
+function hasAccess2(role: Role) {}</code></pre>
+        Rewrite `ROLES` and `Role` so `hasAccess2("adimn")` is a compile error. Then handle the `readonly` gotcha: a library wants `string[]`, how do you pass `ROLES`?
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>const ROLES = ["admin", "member", "viewer"] as const;
+type Role = typeof ROLES[number]; // "admin" | "member" | "viewer"
+
+function hasAccess2(role: Role) { return (ROLES as readonly string[]).includes(role); }
+hasAccess2("adimn"); // ❌ Argument of type '"adimn"' is not assignable to '"admin" | "member" | "viewer"'
+hasAccess2("admin"); // ✅
+
+// readonly gotcha — ROLES is readonly ["admin","member","viewer"]
+// lib wants string[] (mutable) → spread or type param as readonly:
+declare function lib(roles: string[]): void;
+lib([...ROLES]); // spread → mutable copy
+declare function lib2(roles: readonly string[]): void;
+lib2(ROLES); // ✅ if you control the signature, accept readonly</code></pre>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 3 · Branded types</div>
+      <h3>Stop mixing IDs</h3>
+      <p class="objective">Objective: `string &amp; { readonly __brand }` makes `UserId` ≠ `PostId` with zero runtime.</p>
+      <div class="task">
+<pre><code>type UserId = string;
+type PostId = string;
+function getUser(id: UserId) {}
+declare const pid: PostId;
+getUser(pid); // compiles — should not!
+
+// brand both, add helpers, then fix the call:
+type UserId2 = ???;
+type PostId2 = ???;
+function toUserId(raw: string): UserId2 { return ??? }
+function toPostId(raw: string): PostId2 { return ??? }</code></pre>
+        Brand `UserId2`/`PostId2` so `getUser(pid)` fails, and show the one place `as` lives.
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>type UserId2 = string &amp; { readonly __brand: "UserId" };
+type PostId2 = string &amp; { readonly __brand: "PostId" };
+
+function toUserId(raw: string): UserId2 { return raw as UserId2; } // ← the ONE as
+function toPostId(raw: string): PostId2 { return raw as PostId2; }
+
+function getUser2(id: UserId2) {}
+declare const pid2: PostId2;
+declare const uid2: UserId2;
+
+getUser2(pid2); // ❌ Type 'PostId2' is not assignable to 'UserId2'
+getUser2(uid2); // ✅
+getUser2(toUserId("user_123")); // ✅ via helper
+
+// runtime: both are still just strings — typeof uid2 === "string"
+// __brand never exists — phantom, only the checker sees it
+// readonly prevents (uid2 as any).__brand = "PostId" from silently rebranding</code></pre>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 4 · Narrowing unknown</div>
+      <h3>Parse without any</h3>
+      <p class="objective">Objective: `unknown` forces checks; `any` lets `data.emial` compile.</p>
+      <div class="task">
+<pre><code>// ❌ any — typo compiles:
+const raw = localStorage.getItem("user")!;
+const data: any = JSON.parse(raw);
+console.log(data.emial);
+
+// rewrite with unknown + narrowing (and the real-world zod way):
+const data2: unknown = JSON.parse(raw);
+// 1) narrow manually with typeof/in and then access email
+// 2) show the zod version: schema.safeParse → validated Values</code></pre>
+        Do both: manual guard and `zod` `safeParse`. Explain why `catch (e: unknown)` beats `catch (e: any)`.
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>// 1) manual narrowing — unknown forces you:
+const data2: unknown = JSON.parse(raw);
+if (
+  typeof data2 === "object" &amp;&amp; data2 !== null &amp;&amp; "email" in data2 &amp;&amp;
+  typeof (data2 as { email: unknown }).email === "string"
+) {
+  console.log((data2 as { email: string }).email); // ✅ now safe
+}
+
+// 2) zod does it for you (Lesson 11):
+import { z } from "zod";
+const UserSchema = z.object({ email: z.string().email(), name: z.string() });
+const parsed = UserSchema.safeParse(JSON.parse(raw)); // unknown → validated
+if (parsed.success) {
+  parsed.data.email; // ✅ typed string, validated
+} else {
+  parsed.error.issues; // what failed
+}
+
+// catch — same idea:
+try { await getJSON("/api/me"); }
+catch (e: unknown) { // not any — must narrow
+  if (e instanceof Error) console.log(e.message);
+  else console.log(String(e));
+}
+// any would let e.message compile even when e is a string — crash</code></pre>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Stretch · Branded + validated boundary</div>
+      <h3>API returns branded IDs</h3>
+      <p class="objective">Objective: combine boundary validation with branded IDs.</p>
+      <div class="task">
+        Your API returns `{ id: string, email: string }` but inside the app `id` must be `UserId`. Write a `parseUser(raw: unknown): UserId` flow that:
+        <ol>
+          <li>Validates `raw` is an object with `id` and `email` strings (zod)</li>
+          <li>Brands `id` via `toUserId` only after validation</li>
+          <li>Returns `{ id: UserId, email: string }` — so `getUser(parsed.id)` compiles but `getPost(parsed.id)` doesn't</li>
+        </ol>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>import { z } from "zod";
+
+type UserId = string &amp; { readonly __brand: "UserId" };
+type PostId = string &amp; { readonly __brand: "PostId" };
+function toUserId(raw: string): UserId { return raw as UserId; }
+
+const RawUser = z.object({ id: z.string(), email: z.string().email() });
+
+function parseUser(raw: unknown): { id: UserId; email: string } {
+  const validated = RawUser.parse(raw); // throws if invalid — boundary check
+  return { id: toUserId(validated.id), email: validated.email };
+}
+
+// usage:
+const user = parseUser(JSON.parse(rawString)); // unknown → validated → branded
+declare function getUser(id: UserId): void;
+declare function getPost(id: PostId): void;
+getUser(user.id); // ✅
+getPost(user.id); // ❌ Type 'UserId' is not assignable to 'PostId'
+
+// why here? branding AFTER validation keeps the as in one justified place:
+// raw string → zod confirms it's a string → toUserId brands it → rest of app is safe</code></pre>
+      </div>
+    </div>
+
+    <p>Done — you now own the "advanced but common" TS: validate with <code>satisfies</code>, keep literals with <code>as const</code>, prevent ID mixups with brands, and force checks with <code>unknown</code>.</p>
+
+    <div class="lesson-nav">
+      <span><a href="0022-typing-advanced.html">&larr; Lesson 14: Advanced TS Patterns</a></span>
+      <span>Next: <a href="reference.html">Reference</a></span>
+    </div>
+  </div>
+</body>
+</html>
