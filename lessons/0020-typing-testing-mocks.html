@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 13b: Mocks, Context &amp; Async</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Lesson 13b</span>
+    <h1>Mocks, Context &amp; Async</h1>
+    <p class="lesson-meta">Prerequisite: Lesson 13a (your first test) &middot; builds on Jasmine spies + Lesson 6 (context)</p>
+
+    <div class="lesson-nav top">
+      <span><a href="0019-typing-testing.html">&larr; Lesson 13a: Your First Test</a></span>
+      <span>Next: <a href="0021-exercise-testing.html">Exercise 7</a></span>
+    </div>
+
+    <h2 id="typing-vi-fn">Typing <code>vi.fn()</code> — when and why</h2>
+    <p>Plain <code>vi.fn()</code> works. Add a generic only when you want the compiler to check arguments:</p>
+<pre><code>const onSave = vi.fn(); // works — but onSave(42) and onSave("oops") both compile
+const onSaveTyped = vi.fn&lt;(n: number) =&gt; void&gt;(); // now onSaveTyped("oops") is a compile error
+
+// same idea for spyOn — wraps an existing method:
+const spy = vi.spyOn(api, "getJSON"); // typed from the real method — no generic needed
+expect(spy).toHaveBeenCalledWith("/api/users");</code></pre>
+
+    <h2 id="context">Mocking context — wrap, don't mock the hook</h2>
+    <p>When a component calls <code>useAuth()</code>, don't mock the hook — wrap with the real provider. You test the integration that ships:</p>
+<pre><code>function Wrapper({ children }: { children: React.ReactNode }) {
+  return &lt;AuthProvider&gt;{children}&lt;/AuthProvider&gt;;
+}
+
+render(&lt;Profile /&gt;, { wrapper: Wrapper });
+expect(screen.getByText(/welcome/i)).toBeInTheDocument();
+
+// hook's own test — same wrapper trick:
+import { renderHook } from "@testing-library/react";
+const { result } = renderHook(() =&gt; useAuth(), { wrapper: Wrapper });</code></pre>
+
+    <h2 id="network">Mocking data — mock the boundary, not fetch</h2>
+<pre><code>// don't mock global fetch — mock your wrapper (the ONE place as T lives):
+vi.mock("../api", () =&gt; ({
+  getJSON: vi.fn(async () =&gt; [{ id: "1", name: "Ada" }]),
+}));
+
+test("shows users", async () =&gt; {
+  render(&lt;UserList /&gt;);
+  expect(await screen.findByText("Ada")).toBeInTheDocument();
+});</code></pre>
+
+    <h2 id="hooks-async">Testing hooks &amp; async forms</h2>
+<pre><code>import { renderHook, act } from "@testing-library/react";
+
+function useCounter(init = 0) {
+  const [count, setCount] = React.useState(init);
+  return { count, increment: () =&gt; setCount(c =&gt; c + 1) };
+}
+
+test("increments", () =&gt; {
+  const { result } = renderHook(() =&gt; useCounter(10));
+  expect(result.current.count).toBe(10);
+  act(() =&gt; { result.current.increment(); }); // wrap state changes in act
+  expect(result.current.count).toBe(11);
+});</code></pre>
+<pre><code>// async form — wait for the UI to settle:
+test("shows zod error, then submits", async () =&gt; {
+  const user = userEvent.setup();
+  render(&lt;LoginForm /&gt;);
+
+  await user.click(screen.getByRole("button", { name: /sign in/i }));
+  expect(await screen.findByText(/invalid email/i)).toBeInTheDocument();
+
+  await user.type(screen.getByLabelText(/email/i), "ada@example.com");
+  await user.type(screen.getByLabelText(/password/i), "hunter42!!");
+  await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+  // findBy* waits async — getBy* would throw immediately before React flushed:
+  await waitFor(() =&gt; expect(screen.queryByText(/invalid email/i)).not.toBeInTheDocument());
+});</code></pre>
+    <p>Use <code>userEvent.setup()</code> over <code>fireEvent</code> — full event sequence. Wrap async assertions in <code>findBy*</code> or <code>waitFor</code>.</p>
+
+    <h2 id="quiz">Quick Check</h2>
+    <div class="quiz" data-answers='["typed"]'>
+      <p>When do you write <code>vi.fn&lt;(n: number) =&gt; void&gt;()</code> instead of <code>vi.fn()</code>?</p>
+      <label data-why="Correct — the generic is just a TS check; plain vi.fn() still records calls, but the typed form catches wrong arguments at compile time."><input type="radio" name="q1" value="typed"> When you want the compiler to reject wrong arguments</label>
+      <label data-why="Both create a spy — typing is optional and only affects compile-time checks."><input type="radio" name="q1" value="always"> Always — plain vi.fn() doesn't create a spy</label>
+      <label data-why="vi.mock handles module mocks — but it actually is typed from the original module too."><input type="radio" name="q1" value="never"> Never — generics don't work on mocks</label>
+    </div>
+
+    <div class="quiz" data-answers='["wrapper"]'>
+      <p>Component uses <code>useAuth()</code>. How to test it?</p>
+      <label data-why="Mocking the hook hides the integration that ships — you wouldn't catch a provider bug."><input type="radio" name="q2" value="mock"> <code>vi.mock("../AuthContext")</code> the hook</label>
+      <label data-why="Correct — render with the real AuthProvider wrapper, like the app does."><input type="radio" name="q2" value="wrapper"> <code>render(&lt;Profile /&gt;, { wrapper: AuthProvider })</code></label>
+      <label data-why="Props aren't the API — context is."><input type="radio" name="q2" value="props"> Pass auth as a prop instead</label>
+    </div>
+
+    <div class="quiz" data-answers='["find"]'>
+      <p>After submit triggers a fetch, how to wait for "Success"?</p>
+      <label data-why="getBy* throws immediately — it won't wait for the async fetch to resolve and re-render."><input type="radio" name="q3" value="get"> <code>screen.getByText("Success")</code></label>
+      <label data-why="Correct — findBy* waits with a timeout for async UI."><input type="radio" name="q3" value="find"> <code>await screen.findByText("Success")</code></label>
+      <label data-why="queryBy* is sync and returns null immediately — for absence checks, not async waits."><input type="radio" name="q3" value="query"> <code>screen.queryByText("Success")</code></label>
+    </div>
+
+    <h2 id="recipe">Recipe: mocks, context &amp; async</h2>
+    <ol>
+      <li>Type a spy when you want checks: <code>vi.fn&lt;(data: Values) =&gt; void&gt;()</code>; otherwise <code>vi.fn()</code> is fine.</li>
+      <li>Context: wrap with the real provider — <code>render(&lt;X /&gt;, { wrapper })</code> / <code>renderHook(() =&gt; useX(), { wrapper })</code>.</li>
+      <li>Network: <code>vi.mock("../api", () =&gt; ({ getJSON: vi.fn(async () =&gt; [...]) }))</code> — mock the boundary, not <code>fetch</code>.</li>
+      <li>Hooks: <code>act(() =&gt; { result.current.increment() })</code>.</li>
+      <li>Async UI: <code>await screen.findBy*</code> or <code>await waitFor(() =&gt; ...)</code>; use <code>userEvent.setup()</code> not <code>fireEvent</code>.</li>
+    </ol>
+
+    <div class="lesson-nav">
+      <span><a href="0019-typing-testing.html">&larr; Lesson 13a: Your First Test</a></span>
+      <span>Next: <a href="0021-exercise-testing.html">Exercise 7</a></span>
+    </div>
+  </div>
+</body>
+</html>

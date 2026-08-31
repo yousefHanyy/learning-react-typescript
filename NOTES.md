@@ -4,6 +4,7 @@
 - Knows React well (can build real apps)
 - Wants professional/industry-standard TypeScript patterns
 - Pragmatic learner — wants what "people use at work"
+- Testing background: Jasmine + JS (no Vitest/RTL/TS testing yet) — needs Jasmine→Vitest mapping, incremental intro
 
 ## Teaching Preferences
 - Focus on real-world patterns, not theoretical TS
@@ -16,6 +17,7 @@
 - `lessons/reference.html` is the user's living working reference — task-organized, deep-linked to lesson sections. MUST be updated with every new lesson's patterns AND whenever the user asks about something twice / shows a recurring confusion (promote it with extra emphasis). Standing rule (user requested 2026-07-22)
 - Question-born reference entries get wrapped in `<div class="promoted">` — amber background + "From your questions" label (user requested 2026-07-22); six existing entries already tagged
 - All lesson h2 headings now carry anchor ids (e.g. #guard-hook-pattern, #exhaustiveness-guard) so reference entries can deep-link; keep adding ids when creating lessons
+- All code comments are visually distinct (green italic via --code-comment + highlight.js wrapping // and /* */ in span.code-comment); highlight runs via quiz.js/exercise.js on all lessons/exercises and via highlight.js on reference; keep wiring on new pages (user requested 2026-07-22)
 
 ## Session Record
 - Session 1 (2026-07-22): Setting up workspace, foundational lesson on typing props
@@ -44,3 +46,10 @@
 - Session 24 (2026-07-22): User asked if recent Q&A promoted to reference → added three .promoted entries to reference §13 (Controller generic breakdown + render-prop survivor, resolver-as-gate, fieldState vs formState + isSubmitting pattern) per standing rule
 - Session 25 (2026-07-22): Lesson 12 on performance & memo (when memo helps, typing memo/useMemo/useCallback, stable-props checklist, junior rule: don't memo until measured); reference §14 added
 - Session 26 (2026-07-22): Exercise 6 covering Lesson 12 (spot useless memo, fix via useCallback/useMemo, inferred vs explicit handler typing, memo judgment checklist, stretch: inline vs memoized reference identity); Lesson 13 pre-linked as 0019-typing-testing.html; clarified earlier useMemo gotcha (inline object new reference defeats memo shallow compare)
+- Session 27 (2026-07-22): Lesson 13 on testing typed components (Vitest + RTL + jsdom setup, query priority and getBy/queryBy/findBy, userEvent vs fireEvent, typed vi.fn mocks, renderHook + wrapper, async forms with findBy/waitFor); reference §15 added
+- Session 28 (2026-07-22): User found Lesson 13 too fast (Jasmine+JS background) → split into 13a (Your First Test, Jasmine→Vitest mapping, fully commented first test, vi.fn reminder) and 13b (Mocks/Context/Async); added .promoted vi.fn/createSpy reminder to reference §15; Lesson 13b at 0020-typing-testing-mocks.html, exercise shifted to 0021
+- Session 29 (2026-07-22): Made code comments distinct color (green italic, --code-comment light #1a7f37 / dark #7ec699, highlight.js wrapping // and /* */); wired via quiz.js/exercise.js + standalone highlight.js for reference
+- Session 30 (2026-07-22): User asked vi.fn vs vi.spyOn when/why → expanded reference §15 with promoted decision table + two realistic examples (prop callback vs intercepting api.getJSON); clarified auto-typing and mockRestore vs mockClear
+- Session 31 (2026-07-22): User asked "real provider vs not" + "mock the boundary not fetch" → added two promoted entries to reference §15 (real AuthProvider with useState/memo logic vs vi.mock/hand-crafted Provider fakes seeded via initialUser prop; boundary = api.ts getJSON wrapper vs global fetch with table and mockResolvedValue/mockRejectedValue examples)
+- Session 32 (2026-07-22): Added personal note tag beside reference §15 heading per user request — "You flagged this as harder — take 13a first"
+- Session 33 (2026-07-22): Exercise 7 covering 13a+13b (first vi.fn spy, query priority refactor, real provider wrapper vs mock, mock boundary api.getJSON with findBy, stretch: zod async form with waitFor); Lesson 14 pre-linked as 0022-typing-advanced.html

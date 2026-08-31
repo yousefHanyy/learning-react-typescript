@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Reference: React + TypeScript Patterns</title>
   <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/highlight.js" defer></script>
 </head>
 <body>
   <div class="container">
@@ -33,6 +34,7 @@
         <li><a href="#fetching">Typing data fetching</a></li>
       <li><a href="#rhp-forms">Typed forms — Zod + React Hook Form</a></li>
       <li><a href="#perf-memo">Performance &amp; memo</a></li>
+      <li><a href="#testing">Testing typed components</a></li>
       </ol>
     </nav>
 
@@ -531,6 +533,165 @@ const handleChange = useCallback&lt;React.ChangeEventHandler&lt;HTMLInputElement
     <p><strong>When memo helps:</strong> profiler shows slowness AND props are stable (objects via <code>useMemo</code>, functions via <code>useCallback</code>) AND child is expensive/many. Otherwise you pay comparison cost and still render — new object/function each render defeats shallow compare.</p>
     <p><strong>Junior rule:</strong> don't memo until measured. Prefer correct deps and primitives over memo.</p>
     <p><em>Sources:</em> <a href="0017-typing-performance.html#memo-typing">Lesson 12 · memo</a>, <a href="0017-typing-performance.html#usememo">Lesson 12 · useMemo</a>, <a href="0017-typing-performance.html#usecallback">Lesson 12 · useCallback</a></p>
+
+    <!-- ============ TESTING ============ -->
+    <h2 id="testing">15. Testing typed components <span class="tag" style="background: var(--promoted-bg); color: var(--text); border: 1px solid var(--warning); vertical-align: middle; margin-left: 0.5rem;">You flagged this as harder — take 13a first</span></h2>
+    <div class="promoted">
+      <p><strong>Quick reminder — <code>vi.fn()</code> is <code>jasmine.createSpy()</code> renamed:</strong> creates a standalone fake function with empty call history. Call it (<code>onSave(42)</code>), then assert: <code>expect(onSave).toHaveBeenCalled()</code> / <code>toHaveBeenCalledWith(42)</code> / <code>toHaveBeenCalledTimes(2)</code>. Clear with <code>onSave.mockClear()</code> (was <code>spy.calls.reset()</code>). Add a type when you want the compiler to check args: <code>vi.fn&lt;(n: number) =&gt; void&gt;()</code>.</p>
+    </div>
+    <div class="promoted">
+      <p><strong>When to use which — the one-line rule:</strong> <code>vi.fn()</code> when <em>you create</em> the function (you own it, you pass it in as a prop). <code>vi.spyOn(obj, "method")</code> when <em>you watch/mock</em> a method that already lives on an object/module (you don't own it, you intercept it).</p>
+      <table>
+        <tr><th></th><th><code>vi.fn()</code></th><th><code>vi.spyOn(obj, "method")</code></th></tr>
+        <tr><td><strong>You do</strong></td><td>create a new fake</td><td>wrap an existing method with a fake</td></tr>
+        <tr><td><strong>Typed?</strong></td><td>opt-in: <code>vi.fn&lt;(n: number) =&gt; void&gt;()</code></td><td>auto-typed from the real method — no generic needed</td></tr>
+        <tr><td><strong>Restore?</strong></td><td><code>mockClear()</code> (clear history)</td><td><code>mockRestore()</code> (put real method back) or <code>mockClear()</code></td></tr>
+      </table>
+      <p><strong>Realistic <code>vi.fn()</code> — testing a prop callback you provide:</strong></p>
+<pre><code>// Counter calls onSave when clicked — you supply the spy:
+function Counter({ onSave }: { onSave: (n: number) =&gt; void }) {
+  return &lt;button onClick={() =&gt; onSave(42)}&gt;Save&lt;/button&gt;;
+}
+
+test("calls onSave with 42", async () =&gt; {
+  const onSave = vi.fn(); // you created it — no object to spy on
+  render(&lt;Counter onSave={onSave} /&gt;);
+  await userEvent.setup().click(screen.getByRole("button", { name: /save/i }));
+  expect(onSave).toHaveBeenCalledWith(42);
+  expect(onSave).toHaveBeenCalledTimes(1);
+});</code></pre>
+      <p><strong>Realistic <code>vi.spyOn</code> — intercepting an existing module/object:</strong></p>
+<pre><code>// api.ts — real code that hits the network (you don't want it in tests):
+export const api = {
+  getJSON: (url: string) =&gt; fetch(url).then(r =&gt; r.json()),
+  saveUser: (u: User) =&gt; fetch("/api/users", { method: "POST", body: JSON.stringify(u) }),
+};
+
+// UserList.tsx calls api.getJSON internally — you intercept it:
+import * as api from "../api";
+
+test("shows users from api", async () =&gt; {
+  // wrap the REAL getJSON — now it's a spy, and we fake its resolved value:
+  const spy = vi.spyOn(api, "getJSON").mockResolvedValue([
+    { id: "1", name: "Ada" },
+  ]);
+
+  render(&lt;UserList /&gt;);
+  expect(await screen.findByText("Ada")).toBeInTheDocument();
+  expect(spy).toHaveBeenCalledWith("/api/users"); // automatically typed: (url: string)
+
+  spy.mockRestore(); // put the real getJSON back — other tests aren't affected
+});
+
+test("handles save failure", async () =&gt; {
+  // you can also make it reject to test error paths:
+  vi.spyOn(api, "saveUser").mockRejectedValue(new Error("Network error"));
+  render(&lt;UserForm /&gt;);
+  await userEvent.setup().click(screen.getByRole("button", { name: /save/i }));
+  expect(await screen.findByText(/network error/i)).toBeInTheDocument();
+  vi.restoreAllMocks();
+});</code></pre>
+      <p><strong>Rule of thumb:</strong> need to <em>provide</em> a function? <code>vi.fn()</code>. Need to <em>observe/replace</em> a function that already exists somewhere else? <code>vi.spyOn</code>. When in doubt, ask: "did I create this function for the test, or did it already exist on an object before the test?"</p>
+    </div>
+    <div class="promoted">
+      <p><strong>"Wrap with the real provider" — what <em>is</em> real?</strong> The <strong>real</strong> provider is the actual <code>&lt;AuthProvider&gt;</code> component from your <code>auth.tsx</code> file — the one your <code>App.tsx</code> uses — with its real <code>useState/useMemo</code> logic inside. Wrapping with it runs that logic, so if the provider is broken the test fails.</p>
+<pre><code>// auth.tsx — the real file:
+const AuthContext = createContext&lt;AuthContextValue | null&gt;(null); // private — not exported
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState&lt;User | null&gt;(null);
+  const value = useMemo(() =&gt; ({ user, signIn, signOut }), [user]);
+  return &lt;AuthContext value={value}&gt;{children}&lt;/AuthContext&gt;;
+}
+export function useAuth() { // components call this — it throws if outside a provider
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be within &lt;AuthProvider&gt;");
+  return ctx;
+}
+
+// ✅ Real wrapper — test the integration that actually ships:
+import { AuthProvider } from "../auth";
+render(&lt;Profile /&gt;, { wrapper: ({ children }) =&gt; &lt;AuthProvider&gt;{children}&lt;/AuthProvider&gt; });
+expect(screen.getByText(/welcome/i)).toBeInTheDocument();
+
+// hooks too — same wrapper trick:
+const { result } = renderHook(() =&gt; useAuth(), { wrapper: ({ children }) =&gt; &lt;AuthProvider&gt;{children}&lt;/AuthProvider&gt; });</code></pre>
+      <p><strong>Not real — hand-made fakes that skip the provider:</strong></p>
+<pre><code>// ❌ faking the hook — bypasses provider entirely, won't catch a broken provider:
+vi.mock("../auth", () =&gt; ({ useAuth: () =&gt; ({ user: fakeUser, signIn: vi.fn() }) }));
+
+// ❌ hand-crafting the raw context value — also skips AuthProvider's logic/memmoization:
+&lt;AuthContext.Provider value={{ user: fakeUser, signIn: vi.fn() }}&gt;
+  &lt;Profile /&gt;
+&lt;/AuthContext.Provider&gt;</code></pre>
+      <p>Both compile but drift when <code>AuthContextValue</code> gains a field (e.g. <code>signOut</code>) — the fake stays silent while the real app breaks. Need a specific state (e.g. "logged-in as admin")? Give the <em>real</em> provider a test prop: <code>&lt;AuthProvider initialUser={admin}&gt;</code> — still the real component, just seeded. That's Lesson 13b's rule: real wrapper by default, mock the hook only as an escape hatch.</p>
+    </div>
+    <div class="promoted">
+      <p><strong>"Mock the boundary, not <code>fetch</code>" — what boundary?</strong> The <strong>boundary</strong> is the one file <em>you own</em> that touches the outside world — in this course, <code>api.ts</code>'s <code>getJSON&lt;T&gt;</code> wrapper from Lesson 10 (<code>res.ok</code> check + single <code>as T</code>). <code>fetch</code> is the raw browser API — global, untyped, requires you to fake <code>Response</code> objects.</p>
+      <table>
+        <tr><th></th><th>Mock <code>fetch</code> (don't)</th><th>Mock your boundary (do)</th></tr>
+        <tr><td>What you mock</td><td><code>global.fetch</code></td><td><code>api.getJSON</code> / <code>api.saveUser</code></td></tr>
+        <tr><td>Typed?</td><td>no — you fake <code>Response</code> manually</td><td>yes — auto-typed from your wrapper's signature</td></tr>
+        <tr><td>Leaks?</td><td>every test that touches network is affected</td><td>only tests for that boundary</td></tr>
+      </table>
+<pre><code>// api.ts — the boundary you own (ONE place where as T lives):
+export async function getJSON&lt;T&gt;(url: string): Promise&lt;T&gt; {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed: ${res.status}`);
+  return (await res.json()) as T;
+}
+
+// ❌ mocking fetch — you now fake Response, headers, .json(), ok, etc.:
+vi.spyOn(globalThis, "fetch").mockResolvedValue(
+  new Response(JSON.stringify([{ id: "1" }]), { status: 200 })
+  // easy to get wrong, untyped, leaks to other tests
+);
+
+// ✅ mocking the boundary — typed, minimal, local:
+vi.mock("../api", () =&gt; ({
+  getJSON: vi.fn(async () =&gt; [{ id: "1", name: "Ada" }]),
+}));
+// or per-test spy (same boundary, more control):
+import * as api from "../api";
+const spy = vi.spyOn(api, "getJSON").mockResolvedValue([{ id: "1", name: "Ada" }]);
+render(&lt;UserList /&gt;); // UserList calls getJSON internally — you intercepted the boundary
+expect(spy).toHaveBeenCalledWith("/api/users");
+spy.mockRestore();
+
+// still test errors — just make the boundary reject:
+vi.spyOn(api, "getJSON").mockRejectedValue(new Error("Network error"));
+render(&lt;UserList /&gt;);
+expect(await screen.findByText(/network error/i)).toBeInTheDocument();</code></pre>
+      <p>You're unit-testing "does my component handle the data/errors my boundary returns?" — not "does fetch construct a Response correctly?" That's why Lesson 10 put all <code>as T</code> and <code>res.ok</code> in one file, and tests mock that same file.</p>
+    </div>
+<pre><code>// vitest.config.ts — jsdom + setup
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vitest/config";
+export default defineConfig({
+  plugins: [react()],
+  test: { environment: "jsdom", setupFiles: "./vitest.setup.ts" },
+});
+// vitest.setup.ts: import "@testing-library/jest-dom/vitest";
+// tsconfig: types: ["vitest/globals", "vitest/jsdom"]
+
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+const user = userEvent.setup();
+render(&lt;Counter onSave={vi.fn()} /&gt;);
+const btn = screen.getByRole("button", { name: /save/i }); // typed
+await user.click(btn);
+expect(vi.fn()).toHaveBeenCalledWith(42);</code></pre>
+    <p><strong>Query priority:</strong> <code>getByRole</code> (+ name) → <code>getByLabelText</code> → <code>getByText</code> → <code>getByTestId</code> (last resort). <code>getBy*</code> throws if missing, <code>queryBy*</code> returns null (assert absence), <code>findBy*</code> waits async.</p>
+<pre><code>// context/hooks:
+render(&lt;Profile /&gt;, { wrapper: AuthProvider });
+const { result } = renderHook(() =&gt; useCounter(10));
+act(() =&gt; { result.current.increment(); });
+
+// mocks — typed:
+const onSave = vi.fn&lt;(n: number) =&gt; void&gt;();
+vi.mock("../api", () =&gt; ({ getJSON: vi.fn(async () =&gt; [{ id: "1" }]) }));</code></pre>
+    <p><em>Sources:</em> <a href="0019-typing-testing.html#setup">Lesson 13a · setup</a>, <a href="0019-typing-testing.html#queries">Lesson 13a · queries</a>, <a href="0019-typing-testing.html#vi-fn">Lesson 13a · vi.fn</a>, <a href="0020-typing-testing-mocks.html#context">Lesson 13b · context</a>, <a href="0020-typing-testing-mocks.html#hooks-async">Lesson 13b · hooks &amp; async</a></p>
 
     <div class="callout">
       <strong>Maintenance note:</strong> this page grows automatically — each new lesson adds its patterns here, and anything you ask about twice gets promoted into the relevant section with extra emphasis.

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson 13a: Your First Test — Jasmine to Vitest</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Lesson 13a</span>
+    <h1>Your First Test — Jasmine to Vitest</h1>
+    <p class="lesson-meta">Prerequisite: Lessons 1–3 (components you can test) &middot; Jasmine experience counts — no new TS needed yet</p>
+
+    <div class="lesson-nav top">
+      <span><a href="0018-exercise-performance.html">&larr; Exercise 6</a></span>
+      <span>Next: <a href="0020-typing-testing-mocks.html">Lesson 13b: Mocks, Context &amp; Async</a></span>
+    </div>
+
+    <div class="callout">
+      <strong>From Jasmine to Vitest:</strong> you already know 80% of this. Same <code>describe / it / expect</code> — only the spy name and the DOM queries are new.
+      <table>
+        <tr><th>Jasmine (you know)</th><th>Vitest (today)</th></tr>
+        <tr><td><code>describe / it</code></td><td>same — <code>test</code> is an alias for <code>it</code></td></tr>
+        <tr><td><code>jasmine.createSpy()</code></td><td><code>vi.fn()</code></td></tr>
+        <tr><td><code>spyOn(obj, "method")</code></td><td><code>vi.spyOn(obj, "method")</code></td></tr>
+        <tr><td><code>expect(spy).toHaveBeenCalledWith(42)</code></td><td>same</td></tr>
+        <tr><td><code>beforeEach</code></td><td>same</td></tr>
+      </table>
+    </div>
+
+    <h2 id="setup">Setup — two files, then forget it</h2>
+    <p>Real codebases use Vitest + jsdom (a fake browser in Node). Two config files, then every test looks like Jasmine:</p>
+<pre><code>// vitest.config.ts — copy once, never touch again
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vitest/config";
+export default defineConfig({
+  plugins: [react()],
+  test: { environment: "jsdom", setupFiles: "./vitest.setup.ts" },
+});
+// vitest.setup.ts
+import "@testing-library/jest-dom/vitest"; // adds .toBeInTheDocument()</code></pre>
+    <p>Install: <code>vitest jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event @vitejs/plugin-react</code></p>
+
+    <h2 id="first-test">Your first test, line by line</h2>
+    <p>Same pattern as Jasmine — render, find, interact, assert. Only the query is new:</p>
+<pre><code>import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+// Component under test — just a button with a callback prop:
+function Counter({ onSave }: { onSave: (n: number) =&gt; void }) {
+  return &lt;button onClick={() =&gt; onSave(42)}&gt;Save&lt;/button&gt;;
+}
+
+// This block is Jasmine you already know:
+test("calls onSave with 42", async () =&gt; {
+  // 1. Arrange — create a spy (Jasmine: jasmine.createSpy(), here: vi.fn())
+  const onSave = vi.fn(); // fake function that records every call
+
+  // 2. Render — puts &lt;Counter&gt; into jsdom's fake DOM (new vs Jasmine):
+  render(&lt;Counter onSave={onSave} /&gt;);
+
+  // 3. Find — ask "what would a screen reader find?" (new vs Jasmine):
+  //    getByRole throws if not found — use it when the element MUST exist.
+  const btn = screen.getByRole("button", { name: /save/i });
+
+  // 4. Interact — like a real user (new vs Jasmine's fireEvent):
+  const user = userEvent.setup(); // create a user once per test
+  await user.click(btn);          // fires pointerDown → focus → click, not just click
+
+  // 5. Assert — Jasmine you already know:
+  expect(onSave).toHaveBeenCalledWith(42);
+});</code></pre>
+
+    <h2 id="queries">Queries — which to reach for</h2>
+    <p>Priority engineers will expect you to follow (most accessible first):</p>
+    <ol>
+      <li><code>getByRole</code> with <code>name</code> — buttons, headings, links — mirrors screen readers</li>
+      <li><code>getByLabelText</code> — inputs with <code>&lt;label&gt;</code></li>
+      <li><code>getByText</code> — plain text / paragraphs</li>
+      <li><code>getByTestId</code> — last resort only (adds <code>data-testid</code> to production DOM)</li>
+    </ol>
+    <div class="callout">
+      <strong>Three variants, three jobs:</strong>
+      <ul>
+        <li><code>getBy*</code> — throws if not found. Use when the element MUST exist.</li>
+        <li><code>queryBy*</code> — returns <code>null</code> if not found. Use to assert absence: <code>expect(screen.queryByText("Error")).not.toBeInTheDocument()</code></li>
+        <li><code>findBy*</code> — async, waits for the element to appear (we'll use it for fetching in 13b).</li>
+      </ul>
+    </div>
+
+    <h2 id="vi-fn">What <code>vi.fn()</code> / <code>createSpy</code> actually does</h2>
+    <p>Both do the same thing — <strong>create a fake function that remembers every call</strong> so you can ask what happened:</p>
+<pre><code>// Jasmine you know:
+const spy = jasmine.createSpy("onSave");
+spy(42);
+spy(99);
+expect(spy).toHaveBeenCalled();              // was it called at all?
+expect(spy).toHaveBeenCalledWith(42);        // was it called with 42?
+expect(spy).toHaveBeenCalledTimes(2);        // how many times?
+spy.calls.reset(); // clear history between tests
+
+// Vitest — identical, just renamed:
+const onSave = vi.fn(); // ← fake function, empty history
+onSave(42);
+onSave(99);
+expect(onSave).toHaveBeenCalledWith(42);
+expect(onSave).toHaveBeenCalledTimes(2);
+onSave.mockClear(); // same as .calls.reset()</code></pre>
+    <p>You pass the spy as a prop (<code>&lt;Counter onSave={onSave} /&gt;</code>) to prove the component called it correctly — without needing the real implementation. In TS you can add a type hint when you want: <code>vi.fn&lt;(n: number) =&gt; void&gt;()</code> — but plain <code>vi.fn()</code> works fine to start, just like Jasmine.</p>
+
+    <h2 id="quiz">Quick Check</h2>
+    <div class="quiz" data-answers='["vi-fn"]'>
+      <p>What's the Vitest equivalent of <code>jasmine.createSpy()</code>?</p>
+      <label data-why="That's Jest/Jasmine's module mock — not a per-function spy."><input type="radio" name="q1" value="mock"> <code>vi.mock()</code></label>
+      <label data-why="Correct — both create a fake function that records calls for later assertions."><input type="radio" name="q1" value="vi-fn"> <code>vi.fn()</code></label>
+      <label data-why="vi.spyOn wraps an existing method; vi.fn creates a standalone fake."><input type="radio" name="q1" value="spyon"> <code>vi.spyOn(obj, "method")</code> only</label>
+    </div>
+
+    <div class="quiz" data-answers='["role"]'>
+      <p>Which query should you try first for a button?</p>
+      <label data-why="Correct — getByRole with name mirrors accessibility; if it fails, the UI isn't accessible."><input type="radio" name="q2" value="role"> <code>getByRole("button", { name: /save/i })</code></label>
+      <label data-why="Test IDs add production-only attributes and skip accessibility — last resort."><input type="radio" name="q2" value="testid"> <code>getByTestId("save-btn")</code></label>
+      <label data-why="getByText is for non-interactive content; interactive elements have roles."><input type="radio" name="q2" value="text"> <code>getByText("Save")</code></label>
+    </div>
+
+    <div class="quiz" data-answers='["null"]'>
+      <p>How do you assert an error message is NOT on screen?</p>
+      <label data-why="getBy* throws immediately if missing — it can't be used to check absence."><input type="radio" name="q3" value="throw"> <code>screen.getByText("Error")</code></label>
+      <label data-why="Correct — queryBy* returns null when missing, so you can assert .not.toBeInTheDocument()."><input type="radio" name="q3" value="null"> <code>expect(screen.queryByText("Error")).not.toBeInTheDocument()</code></label>
+      <label data-why="findBy* waits async for appearance — wrong tool for absence."><input type="radio" name="q3" value="find"> <code>await screen.findByText("Error")</code></label>
+    </div>
+
+    <h2 id="recipe">Recipe: your first test (Jasmine → Vitest)</h2>
+    <ol>
+      <li>Create a spy: <code>const onSave = vi.fn()</code> (was <code>jasmine.createSpy()</code>).</li>
+      <li>Render: <code>render(&lt;Component onSave={onSave} /&gt;)</code>.</li>
+      <li>Find: <code>screen.getByRole("button", { name: /save/i })</code> first, <code>getByTestId</code> last.</li>
+      <li>Interact: <code>const user = userEvent.setup(); await user.click(btn)</code> (not <code>fireEvent</code>).</li>
+      <li>Assert: <code>expect(onSave).toHaveBeenCalledWith(42)</code> — Jasmine you know.</li>
+    </ol>
+
+    <div class="lesson-nav">
+      <span><a href="0018-exercise-performance.html">&larr; Exercise 6</a></span>
+      <span>Next: <a href="0020-typing-testing-mocks.html">Lesson 13b: Mocks, Context &amp; Async</a></span>
+    </div>
+  </div>
+</body>
+</html>

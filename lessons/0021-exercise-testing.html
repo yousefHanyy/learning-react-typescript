@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exercise 7: Testing Typed Components</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/exercise.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <span class="tag">Exercise 7</span>
+    <h1>Testing Typed Components</h1>
+    <p class="lesson-meta">Covers Lessons 13a &amp; 13b &middot; ~25 min &middot; Jasmine knowledge is enough — start with JS, add types when comfortable</p>
+
+    <div class="lesson-nav top">
+      <span><a href="0020-typing-testing-mocks.html">&larr; Lesson 13b: Mocks, Context &amp; Async</a></span>
+      <span>Next: <a href="0022-typing-advanced.html">Lesson 14: Advanced TS Patterns</a></span>
+    </div>
+
+    <div class="callout">
+      <strong>How to do this:</strong> write failing tests first (Jasmine style), then make them pass. Reveal only after your <code>expect</code> is written — the thinking is the skill.
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 1 · Your first spy</div>
+      <h3>Counter calls onSave</h3>
+      <p class="objective">Objective: <code>vi.fn()</code> is <code>jasmine.createSpy()</code> — create, pass, assert.</p>
+      <div class="task">
+<pre><code>function Counter({ onSave }: { onSave: (n: number) =&gt; void }) {
+  return &lt;button onClick={() =&gt; onSave(42)}&gt;Save&lt;/button&gt;;
+}</code></pre>
+        Write a test that:
+        <ul>
+          <li>Creates a spy with <code>vi.fn()</code> (like <code>jasmine.createSpy()</code>)</li>
+          <li>Renders <code>&lt;Counter onSave={spy} /&gt;</code></li>
+          <li>Finds the button by role and clicks it with <code>userEvent</code></li>
+          <li>Asserts <code>toHaveBeenCalledWith(42)</code> and <code>toHaveBeenCalledTimes(1)</code></li>
+        </ul>
+        No types needed yet — plain <code>vi.fn()</code> is fine.
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+test("calls onSave with 42", async () =&gt; {
+  const onSave = vi.fn(); // ← standalone fake — you created it
+  render(&lt;Counter onSave={onSave} /&gt;);
+
+  const btn = screen.getByRole("button", { name: /save/i }); // most accessible query
+  await userEvent.setup().click(btn); // real user sequence, not just click event
+
+  expect(onSave).toHaveBeenCalledWith(42);
+  expect(onSave).toHaveBeenCalledTimes(1);
+});</code></pre>
+        <p>Add the type later when you want the compiler to guard it: <code>vi.fn&lt;(n: number) =&gt; void&gt;()</code> then <code>onSave("oops")</code> becomes a compile error — same spy, just tighter.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 2 · Queries</div>
+      <h3>Fix the query priority</h3>
+      <p class="objective">Objective: <code>getByRole</code> first, <code>getByTestId</code> last.</p>
+      <div class="task">
+        This test works but would fail code review — why? Refactor it to use the priority from Lesson 13a:
+<pre><code>render(&lt;LoginForm /&gt;);
+const input = screen.getByTestId("email-input"); // ❌
+const btn = screen.getByTestId("submit-btn");    // ❌
+await userEvent.setup().click(btn);
+expect(screen.getByText("Sign in")).toBeInTheDocument(); // ❌ for a button</code></pre>
+        Rewrite with the correct queries and explain which variant (<code>getBy</code> / <code>queryBy</code> / <code>findBy</code>) you'd use to assert "error is NOT on screen."
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>render(&lt;LoginForm /&gt;);
+
+// 1. inputs with labels → getByLabelText:
+const input = screen.getByLabelText(/email/i);
+// 2. buttons → getByRole with name:
+const btn = screen.getByRole("button", { name: /sign in/i });
+await userEvent.setup().click(btn);
+// 3. after submit, assert absence with queryBy (returns null if missing):
+expect(screen.queryByText(/invalid email/i)).not.toBeInTheDocument();</code></pre>
+        <p><code>getByTestId</code> adds prod-only attributes and skips accessibility — last resort. <code>getBy*</code> throws if missing (for elements that must exist), <code>queryBy*</code> returns null (for absence), <code>findBy*</code> waits async (next challenge).</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 3 · Real provider</div>
+      <h3>Wrap, don't mock the hook</h3>
+      <p class="objective">Objective: real <code>&lt;AuthProvider&gt;</code> wrapper vs faking <code>useAuth</code>.</p>
+      <div class="task">
+<pre><code>function Profile() {
+  const { user } = useAuth(); // throws if outside a provider
+  return &lt;p&gt;Welcome, {user.name}&lt;/p&gt;;
+}</code></pre>
+        Write two versions and label which is "real":
+        <ol>
+          <li>Using <code>vi.mock("../auth", () =&gt; ({ useAuth: () =&gt; fake }))</code></li>
+          <li>Using <code>render(&lt;Profile /&gt;, { wrapper: AuthProvider })</code></li>
+        </ol>
+        Say why 2) is the default and when you'd still need to fake (hint: seeding a specific state like "admin").
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>// ❌ Not real — bypasses AuthProvider's useState/memo logic, drifts when
+//    AuthContextValue adds signOut:
+vi.mock("../auth", () =&gt; ({ useAuth: () =&gt; ({ user: fakeUser }) }));
+render(&lt;Profile /&gt;);
+
+// ✅ Real — runs the actual provider, catches provider bugs:
+import { AuthProvider } from "../auth";
+render(&lt;Profile /&gt;, {
+  wrapper: ({ children }) =&gt; &lt;AuthProvider&gt;{children}&lt;/AuthProvider&gt;,
+});
+expect(screen.getByText(/welcome, ada/i)).toBeInTheDocument();
+
+// hooks too:
+const { result } = renderHook(() =&gt; useAuth(), {
+  wrapper: ({ children }) =&gt; &lt;AuthProvider&gt;{children}&lt;/AuthProvider&gt;,
+});</code></pre>
+        <p>Need "logged-in as admin" without doing a login? Seed the <em>real</em> provider: <code>&lt;AuthProvider initialUser={admin}&gt;</code> — still the real component, just with test data. Mock the hook only as an escape hatch.</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Challenge 4 · Mock the boundary</div>
+      <h3>UserList that fetches</h3>
+      <p class="objective">Objective: mock <code>api.getJSON</code> (the boundary), not <code>fetch</code>.</p>
+      <div class="task">
+<pre><code>// api.ts — the ONE place as T lives (Lesson 10):
+export async function getJSON&lt;T&gt;(url: string): Promise&lt;T&gt; { ... }
+// UserList.tsx calls getJSON internally:
+function UserList() {
+  const state = useFetch&lt;User[]&gt;("/api/users");
+  if (state.status !== "success") return &lt;p&gt;Loading…&lt;/p&gt;;
+  return &lt;ul&gt;{state.data.map(u =&gt; &lt;li key={u.id}&gt;{u.name}&lt;/li&gt;)}&lt;/ul&gt;;
+}</code></pre>
+        Write a test that:
+        <ul>
+          <li>Spies on <code>api.getJSON</code> (not <code>global.fetch</code>) with <code>mockResolvedValue</code></li>
+          <li>Renders <code>&lt;UserList /&gt;</code> and waits with <code>findByText</code></li>
+          <li>Asserts <code>toHaveBeenCalledWith("/api/users")</code> (auto-typed)</li>
+          <li>Then a second test where the boundary rejects and the error UI appears — use <code>mockRejectedValue</code></li>
+        </ul>
+        Say why mocking <code>fetch</code> is the wrong answer.
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>import * as api from "../api";
+
+test("shows users", async () =&gt; {
+  const spy = vi.spyOn(api, "getJSON").mockResolvedValue([{ id: "1", name: "Ada" }]);
+
+  render(&lt;UserList /&gt;);
+  expect(await screen.findByText("Ada")).toBeInTheDocument(); // findBy* waits async
+  expect(spy).toHaveBeenCalledWith("/api/users"); // typed: (url: string)
+  spy.mockRestore();
+});
+
+test("shows error when boundary fails", async () =&gt; {
+  vi.spyOn(api, "getJSON").mockRejectedValue(new Error("Network error"));
+  render(&lt;UserList /&gt;);
+  expect(await screen.findByText(/network error/i)).toBeInTheDocument();
+  vi.restoreAllMocks();
+});</code></pre>
+        <p>Why not <code>fetch</code>? <code>fetch</code> is global — you fake <code>Response</code> objects by hand (untyped, leaks to other tests). Your boundary <code>api.getJSON</code> is local, typed, and the same file Lesson 10 centralized — mocking it tests "does my component handle what my wrapper returns?" not "does fetch construct a Response?"</p>
+      </div>
+    </div>
+
+    <div class="exercise">
+      <div class="exercise-number">Stretch · Async form</div>
+      <h3>Zod blocks submit</h3>
+      <p class="objective">Objective: <code>findBy</code> + <code>waitFor</code> + <code>userEvent</code> (Lesson 13b).</p>
+      <div class="task">
+        A <code>LoginForm</code> uses <code>zodResolver</code> — invalid email blocks <code>onSuccess</code> and renders the error. Write a test that:
+        <ol>
+          <li>Clicks submit with empty fields → waits for "Invalid email" with <code>findByText</code> and asserts <code>onSuccess = vi.fn()</code> was NOT called</li>
+          <li>Types a valid email/password with <code>user.type</code>, clicks again, then waits for the error to disappear (use <code>waitFor</code> + <code>queryByText</code>)</li>
+        </ol>
+      </div>
+      <div class="solution">
+        <h4>Solution</h4>
+<pre><code>test("zod blocks, then submits", async () =&gt; {
+  const user = userEvent.setup();
+  const onSuccess = vi.fn();
+  render(&lt;LoginForm onSuccess={onSuccess} /&gt;);
+
+  await user.click(screen.getByRole("button", { name: /sign in/i }));
+  expect(await screen.findByText(/invalid email/i)).toBeInTheDocument();
+  expect(onSuccess).not.toHaveBeenCalled(); // resolver is the gate
+
+  await user.type(screen.getByLabelText(/email/i), "ada@example.com");
+  await user.type(screen.getByLabelText(/password/i), "hunter42!!");
+  await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+  await waitFor(() =&gt;
+    expect(screen.queryByText(/invalid email/i)).not.toBeInTheDocument()
+  );
+  expect(onSuccess).toHaveBeenCalled();
+});</code></pre>
+        <p><code>getBy*</code> would throw immediately before React flushed — <code>findBy*</code> waits with a timeout for async UI after validation/fetch. That's the async pattern juniors miss.</p>
+      </div>
+    </div>
+
+    <p>All done? You now own the testing pattern real codebases expect: spy when you provide a callback, spyOn when you intercept a boundary, real provider wrappers, and <code>findBy</code> for async UI.</p>
+
+    <div class="lesson-nav">
+      <span><a href="0020-typing-testing-mocks.html">&larr; Lesson 13b: Mocks, Context &amp; Async</a></span>
+      <span>Next: <a href="0022-typing-advanced.html">Lesson 14: Advanced TS Patterns</a></span>
+    </div>
+  </div>
+</body>
+</html>
