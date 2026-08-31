@@ -1,6 +1,6 @@
 /* ─── Shared Stylesheet: learning-react-typescript ─── */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 
 :root {
   --bg: #faf9f6;
@@ -16,8 +16,10 @@
   --success: #10b981;
   --error: #ef4444;
   --warning: #f59e0b;
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+    sans-serif;
+  --mono: "JetBrains Mono", "Fira Code", monospace;
   --radius: 8px;
   --max-width: 720px;
 }
@@ -37,7 +39,11 @@
   }
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 body {
   font-family: var(--font);
@@ -53,16 +59,48 @@ body {
   margin: 0 auto;
 }
 
-h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.5rem; }
-h2 { font-size: 1.35rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.75rem; border-bottom: 2px solid var(--accent); padding-bottom: 0.25rem; display: inline-block; }
-h3 { font-size: 1.1rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+}
+h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 0.25rem;
+  display: inline-block;
+}
+h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
 
-p, ul, ol { margin-bottom: 1rem; }
-ul, ol { padding-left: 1.25rem; }
-li { margin-bottom: 0.25rem; }
+p,
+ul,
+ol {
+  margin-bottom: 1rem;
+}
+ul,
+ol {
+  padding-left: 1.25rem;
+}
+li {
+  margin-bottom: 0.25rem;
+}
 
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
 
 code {
   font-family: var(--mono);
@@ -146,7 +184,9 @@ pre code {
   margin-bottom: 1rem;
 }
 
-.quiz p { margin-bottom: 0.75rem; }
+.quiz p {
+  margin-bottom: 0.75rem;
+}
 
 .quiz label {
   display: block;
@@ -162,7 +202,9 @@ pre code {
   background: var(--accent-light);
 }
 
-.quiz input { margin-right: 0.5rem; }
+.quiz input {
+  margin-right: 0.5rem;
+}
 
 .quiz-feedback {
   margin-top: 0.5rem;
@@ -170,8 +212,12 @@ pre code {
   font-size: 0.9rem;
 }
 
-.quiz-feedback.correct { color: var(--success); }
-.quiz-feedback.wrong { color: var(--error); }
+.quiz-feedback.correct {
+  color: var(--success);
+}
+.quiz-feedback.wrong {
+  color: var(--error);
+}
 
 .quiz-submit {
   background: var(--accent);
@@ -217,8 +263,14 @@ pre code {
   padding-bottom: 1rem;
 }
 
-dt { margin-top: 1rem; margin-bottom: 0.25rem; }
-dd { margin-left: 0; color: var(--muted); }
+dt {
+  margin-top: 1rem;
+  margin-bottom: 0.25rem;
+}
+dd {
+  margin-left: 0;
+  color: var(--muted);
+}
 
 /* Exercise */
 .exercise {
@@ -237,7 +289,10 @@ dd { margin-left: 0; color: var(--muted); }
   color: var(--accent);
 }
 
-.exercise h3 { margin-top: 0.25rem; margin-bottom: 0.5rem; }
+.exercise h3 {
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+}
 
 .exercise .objective {
   font-size: 0.875rem;
@@ -257,9 +312,15 @@ dd { margin-left: 0; color: var(--muted); }
   padding: 1rem;
 }
 
-.solution.visible { display: block; }
+.solution.visible {
+  display: block;
+}
 
-.solution h4 { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.5rem; }
+.solution h4 {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
 
 .reveal-btn {
   background: none;
@@ -277,8 +338,52 @@ dd { margin-left: 0; color: var(--muted); }
   background: var(--accent-light);
 }
 
+#back-to-top {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.2s,
+    visibility 0.2s;
+  z-index: 100;
+}
+#back-to-top.visible {
+  opacity: 1;
+  visibility: visible;
+}
+#back-to-top:hover {
+  opacity: 0.9;
+}
+
 @media print {
-  body { font-size: 12px; padding: 0; }
-  .lesson-nav { display: none; }
-  pre { break-inside: avoid; }
+  body {
+    font-size: 12px;
+    padding: 0;
+  }
+  .lesson-nav {
+    display: none;
+  }
+  #back-to-top {
+    display: none;
+  }
+  pre {
+    break-inside: avoid;
+  }
 }
