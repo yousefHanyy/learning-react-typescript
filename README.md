@@ -1,5 +1,7 @@
 # Learning React with TypeScript
 
+Live site: [https://yousefhanyy.github.io/learning-react-typescript/](https://yousefhanyy.github.io/learning-react-typescript/)
+
 This repository is my ongoing journey of learning how TypeScript is used in real React codebases.
 
 I already know React well enough to build applications. The goal here is to develop the TypeScript fluency needed to work confidently in professional projects: typing component APIs, handling browser events, modeling state, and understanding the patterns that make React code easier to maintain.
