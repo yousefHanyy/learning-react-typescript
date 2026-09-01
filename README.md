@@ -19,31 +19,44 @@ The skill is part of Matt Pocock's broader [Skills for Real Engineers repository
 
 ## Learning Path
 
-The lessons move from everyday React typing into patterns used in larger codebases:
+The course now covers 14 lessons + 8 exercises, from everyday React typing into production patterns:
 
 1. Props and component APIs
 2. Events and state
-3. Refs
-4. Generic components
-5. Core TypeScript exercises
-6. Context and hooks
-7. Utility types
-8. Context and utilities exercise
-9. `useReducer` and reducer state
-10. Forms and actions
-11. Reducers and forms exercise
+3. Refs (DOM vs value, React 19 ref-as-prop)
+4. Generic components & when to use generics
+5. Exercise 1 — Core typing (Lessons 1–4)
+6. Context and hooks (honest null + guard hook)
+7. Utility types & wrapping native elements
+8. Exercise 2 — Context & utilities
+9. `useReducer` and reducer state (exhaustiveness guard)
+10. Forms and actions (`onSubmit` vs `action` vs `useActionState`)
+11. Exercise 3 — Reducers & forms
+12. Polymorphic components (`as` prop)
+13. Data fetching (typed wrapper + `FetchState` machine)
+14. Exercise 4 — Polymorphic & data fetching
+15. Typed forms with Zod + React Hook Form
+16. Exercise 5 — Advanced forms
+17. Performance & memo (`memo`/`useMemo`/`useCallback`)
+18. Exercise 6 — Performance
+19. Testing typed components — 13a: Your First Test (Jasmine → Vitest) + 13b: Mocks, Context & Async
+20. Exercise 7 — Testing
+21. Advanced TS patterns (`satisfies`, `as const`, branded types, `unknown`)
+22. Exercise 8 — Advanced patterns
+
+Start from [`lessons/index.html`](lessons/index.html) — the hub lists all pages by name in order — or open [`lessons/reference.html`](lessons/reference.html) for the task-organized quick reference that grows with every lesson.
 
 Each lesson has a matching learning record that captures the concepts, decisions, and discoveries from that stage of the journey.
 
 ## Repository Guide
 
-- [`lessons/`](lessons/) contains the readable lesson pages and exercises.
-- [`learning-records/`](learning-records/) contains the ongoing notes from each lesson.
-- [`reference/glossary.html`](reference/glossary.html) collects project vocabulary and quick references.
-- [`assets/`](assets/) contains the shared styles and interactive exercise or quiz scripts.
-- [`MISSION.md`](MISSION.md) describes the goals and success criteria for the project.
-- [`NOTES.md`](NOTES.md) is the working scratchpad for questions, reminders, and follow-up topics.
-- [`RESOURCES.md`](RESOURCES.md) collects useful external learning material.
+- [`lessons/`](lessons/) — readable lesson pages, exercises, and [`lessons/index.html`](lessons/index.html) hub; [`lessons/reference.html`](lessons/reference.html) is the living working reference (task-organized, deep-linked).
+- [`learning-records/`](learning-records/) — ongoing notes from each lesson.
+- [`reference/glossary.html`](reference/glossary.html) — vocabulary and quick definitions.
+- [`assets/`](assets/) — shared styles (`style.css`), quiz/exercise widgets (`quiz.js`, `exercise.js`), syntax highlighting (`highlight.js`), back-to-top arrow (`back-to-top.js`), and top tab navigation (`site-nav.js`).
+- [`MISSION.md`](MISSION.md) — goals and success criteria.
+- [`NOTES.md`](NOTES.md) — working scratchpad for questions, reminders, and follow-up topics.
+- [`RESOURCES.md`](RESOURCES.md) — external learning material.
 
 ## Goals
 
