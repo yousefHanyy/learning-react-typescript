@@ -1,6 +1,6 @@
 # Learning React with TypeScript
 
-Live site: [https://yousefhanyy.github.io/learning-react-typescript/](https://yousefhanyy.github.io/learning-react-typescript/)
+Live site: [https://yousefhanyy.github.io/learning-react-typescript/](learning-react-typescript)
 
 This repository is my ongoing journey of learning how TypeScript is used in real React codebases.
 
