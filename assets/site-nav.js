@@ -4,21 +4,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const path = location.pathname;
   const isRef = path.endsWith("reference.html");
   const isGlossary = path.endsWith("glossary.html");
-  const isLessonsIndex = path.endsWith("/lessons/index.html") || path.endsWith("/lessons/") || path.endsWith("lessons/index.html");
+  const isRootIndex = path.endsWith("/index.html") && !path.includes("/lessons/") && !path.includes("/reference/") || path.endsWith("/") && !path.includes("/lessons/") && !path.includes("/reference/") || path === "index.html";
+  const isLessonsIndex = isRootIndex || path.endsWith("/lessons/index.html") || path.endsWith("/lessons/") || path.endsWith("lessons/index.html");
   const inLessons = path.includes("/lessons/");
   const inReference = path.includes("/reference/");
   let refHref, lessonsHref, glossaryHref;
   if (inLessons) {
     refHref = "reference.html";
-    lessonsHref = "index.html";
+    lessonsHref = "../index.html";
     glossaryHref = "../reference/glossary.html";
   } else if (inReference) {
     refHref = "../lessons/reference.html";
-    lessonsHref = "../lessons/index.html";
+    lessonsHref = "../index.html";
     glossaryHref = "glossary.html";
   } else {
     refHref = "lessons/reference.html";
-    lessonsHref = "lessons/index.html";
+    lessonsHref = "index.html";
     glossaryHref = "reference/glossary.html";
   }
 

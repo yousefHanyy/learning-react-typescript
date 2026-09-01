@@ -44,13 +44,13 @@ The course now covers 14 lessons + 8 exercises, from everyday React typing into 
 21. Advanced TS patterns (`satisfies`, `as const`, branded types, `unknown`)
 22. Exercise 8 — Advanced patterns
 
-Start from [`lessons/index.html`](lessons/index.html) — the hub lists all pages by name in order — or open [`lessons/reference.html`](lessons/reference.html) for the task-organized quick reference that grows with every lesson.
+Start from [`index.html`](index.html) — the hub lists all pages by name in order — or open [`lessons/reference.html`](lessons/reference.html) for the task-organized quick reference that grows with every lesson.
 
 Each lesson has a matching learning record that captures the concepts, decisions, and discoveries from that stage of the journey.
 
 ## Repository Guide
 
-- [`lessons/`](lessons/) — readable lesson pages, exercises, and [`lessons/index.html`](lessons/index.html) hub; [`lessons/reference.html`](lessons/reference.html) is the living working reference (task-organized, deep-linked).
+- [`lessons/`](lessons/) — readable lesson pages, exercises, and [`index.html`](index.html) hub; [`lessons/reference.html`](lessons/reference.html) is the living working reference (task-organized, deep-linked).
 - [`learning-records/`](learning-records/) — ongoing notes from each lesson.
 - [`reference/glossary.html`](reference/glossary.html) — vocabulary and quick definitions.
 - [`assets/`](assets/) — shared styles (`style.css`), quiz/exercise widgets (`quiz.js`, `exercise.js`), syntax highlighting (`highlight.js`), back-to-top arrow (`back-to-top.js`), and top tab navigation (`site-nav.js`).
